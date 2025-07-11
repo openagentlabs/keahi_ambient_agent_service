@@ -1,0 +1,156 @@
+---
+alwaysApply: false
+---
+# Signaling Protocol Specification
+
+## 1. Protocol Overview
+
+The signaling protocol defines a custom binary WebSocket message format for efficient, reliable communication between clients and backend services.
+
+### 1.1. Message Structure
+```
+[Start Byte (1 byte)] [Message Type (1 byte)] [Message UUID (16 bytes)] [Payload Type (1 byte)] [Payload Length (2 bytes)] [Payload (N bytes)]
+```
+- **Start Byte (1 byte):** Fixed indicator byte (e.g., 0xAA) to identify the start of a message
+- **Message Type (1 byte):** Identifies the type of signaling message
+- **Message UUID (16 bytes):** Fixed-length UUID (128-bit) for unique message identification and correlation
+- **Payload Type (1 byte):** Indicates the format of the payload data
+- **Payload Length (2 bytes):** 16-bit unsigned integer indicating the length of the payload in bytes
+- **Payload (N bytes):** Variable-length data containing the actual message content in the specified format
+
+### 1.2. Message Types
+| Type | Value | Description |
+|------|-------|-------------|
+| CONNECT | 0x01 | Client connection request |
+| CONNECT_ACK | 0x02 | Connection acknowledgment |
+| DISCONNECT | 0x03 | Client disconnection notification |
+| HEARTBEAT | 0x04 | Keep-alive heartbeat |
+| HEARTBEAT_ACK | 0x05 | Heartbeat acknowledgment |
+| SIGNAL_OFFER | 0x10 | WebRTC offer signal |
+| SIGNAL_ANSWER | 0x11 | WebRTC answer signal |
+| SIGNAL_ICE_CANDIDATE | 0x12 | ICE candidate signal |
+| ERROR | 0xFF | Error message |
+
+### 1.3. Payload Types
+| Type | Value | Description |
+|------|-------|-------------|
+| BINARY | 0x01 | Raw binary data |
+| JSON | 0x02 | JSON-encoded data |
+| TEXT | 0x03 | Plain text data |
+| PROTOBUF | 0x04 | Protocol Buffer encoded data |
+| CBOR | 0x05 | CBOR (Concise Binary Object Representation) |
+
+### 1.4. Payload Formats
+Each message type has specific payload requirements. The payload format depends on the Payload Type byte:
+
+**CONNECT (0x01):**
+- **BINARY (0x01):** `[Client ID Length (1 byte)] [Client ID (N bytes)] [Auth Token Length (1 byte)] [Auth Token (N bytes)]`
+- **JSON (0x02):** `{"client_id": "string", "auth_token": "string"}`
+- **TEXT (0x03):** `client_id:auth_token` (colon-separated)
+
+**CONNECT_ACK (0x02):**
+- **BINARY (0x01):** `[Status (1 byte)] [Session ID Length (1 byte)] [Session ID (N bytes)]`
+- **JSON (0x02):** `{"status": "success|error", "session_id": "string"}`
+- **TEXT (0x03):** `status:session_id` (colon-separated)
+
+**SIGNAL_OFFER/ANSWER/ICE_CANDIDATE (0x10-0x12):**
+- **BINARY (0x01):** `[Target Client ID Length (1 byte)] [Target Client ID (N bytes)] [Signal Data Length (2 bytes)] [Signal Data (N bytes)]`
+- **JSON (0x02):** `{"target_client_id": "string", "signal_data": "base64_encoded_string"}`
+- **TEXT (0x03):** `target_client_id:signal_data` (colon-separated)
+
+**ERROR (0xFF):**
+- **BINARY (0x01):** `[Error Code (1 byte)] [Error Message Length (1 byte)] [Error Message (N bytes)]`
+- **JSON (0x02):** `{"error_code": 123, "error_message": "string"}`
+- **TEXT (0x03):** `error_code:error_message` (colon-separated)
+
+### 1.5. Message Handling
+- Parse, validate, and route binary messages according to type and payload.
+- Validate message type, payload type, and payload length.
+- Support serialization/deserialization for all payload formats (binary, JSON, text).
+- Handle errors and protocol violations robustly.
+
+
+
+
+
+
+
+
+
+
+# Signaling Protocol Specification
+
+## 1. Protocol Overview
+
+The signaling protocol defines a custom binary WebSocket message format for efficient, reliable communication between clients and backend services.
+
+### 1.1. Message Structure
+```
+[Start Byte (1 byte)] [Message Type (1 byte)] [Message UUID (16 bytes)] [Payload Type (1 byte)] [Payload Length (2 bytes)] [Payload (N bytes)]
+```
+- **Start Byte (1 byte):** Fixed indicator byte (e.g., 0xAA) to identify the start of a message
+- **Message Type (1 byte):** Identifies the type of signaling message
+- **Message UUID (16 bytes):** Fixed-length UUID (128-bit) for unique message identification and correlation
+- **Payload Type (1 byte):** Indicates the format of the payload data
+- **Payload Length (2 bytes):** 16-bit unsigned integer indicating the length of the payload in bytes
+- **Payload (N bytes):** Variable-length data containing the actual message content in the specified format
+
+### 1.2. Message Types
+| Type | Value | Description |
+|------|-------|-------------|
+| CONNECT | 0x01 | Client connection request |
+| CONNECT_ACK | 0x02 | Connection acknowledgment |
+| DISCONNECT | 0x03 | Client disconnection notification |
+| HEARTBEAT | 0x04 | Keep-alive heartbeat |
+| HEARTBEAT_ACK | 0x05 | Heartbeat acknowledgment |
+| SIGNAL_OFFER | 0x10 | WebRTC offer signal |
+| SIGNAL_ANSWER | 0x11 | WebRTC answer signal |
+| SIGNAL_ICE_CANDIDATE | 0x12 | ICE candidate signal |
+| ERROR | 0xFF | Error message |
+
+### 1.3. Payload Types
+| Type | Value | Description |
+|------|-------|-------------|
+| BINARY | 0x01 | Raw binary data |
+| JSON | 0x02 | JSON-encoded data |
+| TEXT | 0x03 | Plain text data |
+| PROTOBUF | 0x04 | Protocol Buffer encoded data |
+| CBOR | 0x05 | CBOR (Concise Binary Object Representation) |
+
+### 1.4. Payload Formats
+Each message type has specific payload requirements. The payload format depends on the Payload Type byte:
+
+**CONNECT (0x01):**
+- **BINARY (0x01):** `[Client ID Length (1 byte)] [Client ID (N bytes)] [Auth Token Length (1 byte)] [Auth Token (N bytes)]`
+- **JSON (0x02):** `{"client_id": "string", "auth_token": "string"}`
+- **TEXT (0x03):** `client_id:auth_token` (colon-separated)
+
+**CONNECT_ACK (0x02):**
+- **BINARY (0x01):** `[Status (1 byte)] [Session ID Length (1 byte)] [Session ID (N bytes)]`
+- **JSON (0x02):** `{"status": "success|error", "session_id": "string"}`
+- **TEXT (0x03):** `status:session_id` (colon-separated)
+
+**SIGNAL_OFFER/ANSWER/ICE_CANDIDATE (0x10-0x12):**
+- **BINARY (0x01):** `[Target Client ID Length (1 byte)] [Target Client ID (N bytes)] [Signal Data Length (2 bytes)] [Signal Data (N bytes)]`
+- **JSON (0x02):** `{"target_client_id": "string", "signal_data": "base64_encoded_string"}`
+- **TEXT (0x03):** `target_client_id:signal_data` (colon-separated)
+
+**ERROR (0xFF):**
+- **BINARY (0x01):** `[Error Code (1 byte)] [Error Message Length (1 byte)] [Error Message (N bytes)]`
+- **JSON (0x02):** `{"error_code": 123, "error_message": "string"}`
+- **TEXT (0x03):** `error_code:error_message` (colon-separated)
+
+### 1.5. Message Handling
+- Parse, validate, and route binary messages according to type and payload.
+- Validate message type, payload type, and payload length.
+- Support serialization/deserialization for all payload formats (binary, JSON, text).
+- Handle errors and protocol violations robustly.
+
+
+
+
+
+
+
+
+

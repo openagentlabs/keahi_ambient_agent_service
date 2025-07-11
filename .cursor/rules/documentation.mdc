@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+# Documentation Requirements
+
+##Generating documentation
+- Only generate documentation when asked to by the user
+- When generating documentation, always place documetation in a su8b directory of the root, where the sub cirectory matches the application folder name.
+- When generating documentation assume thet the reader is new to the project and 

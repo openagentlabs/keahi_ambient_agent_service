@@ -1,0 +1,102 @@
+---
+alwaysApply: false
+---
+# Product Requirements Document: Signaling Management Service
+
+## 1. Overview
+
+The Signaling Management Service is a core backend component of the remote screen-sharing solution. Its primary responsibility is to provide a high-performance, reliable, and secure WebSocket server for managing signaling between agents and backend services. This service is implemented as a Rust console application and is designed for scalability and maintainability.
+
+## 2. Goals & Objectives
+
+- Provide a robust, high-performance WebSocket server for signaling.
+- Ensure secure, authenticated, and reliable communication between clients and backend services.
+- Integrate seamlessly with other system components (e.g., session management, Pub/Sub, Firestore).
+- Be maintainable and extensible for future requirements.
+
+## 3. Functional Requirements
+
+### 3.1. WebSocket Server
+- The service must implement a WebSocket server using `tokio` and `tokio-tungstenite`.
+- The server should support concurrent connections from multiple clients.
+- The server must handle incoming and outgoing signaling messages efficiently.
+- The server should support both broadcast and targeted message delivery.
+
+### 3.2. Authentication & Security
+- All WebSocket connections must be authenticated (e.g., via tokens or API keys).
+- All communication must be encrypted (TLS support).
+
+### 3.3. Message Handling
+- Support for JSON-encoded signaling messages using `serde`.
+- Handle message parsing, validation, and routing.
+- Support for error handling and reporting to clients.
+
+### 3.4. Integration
+- Integrate with Firestore for session or user data as needed.
+- Provide hooks or interfaces for integration with other backend services (e.g., session management, Pub/Sub).
+
+### 3.5. Observability
+- Log all connection events, errors, and significant actions.
+- Provide metrics for active connections, message throughput, and error rates.
+
+## 4. Non-Functional Requirements
+
+- **Performance:** Must handle a high number of concurrent WebSocket connections with low latency.
+- **Reliability:** Must recover gracefully from errors and support automatic restarts.
+- **Maintainability:** Code should be modular, well-documented, and follow Rust best practices.
+- **Scalability:** Should be designed to scale horizontally (multiple instances).
+- Development language: Rust : Version 1.88.0
+- Console application
+- High prefromance web socket server 
+
+## 5. Technical Stack
+
+- **Language:** Rust (version 1.88.0)
+- **Application Type:** Console application
+- **Key Crates:**
+  - `tokio` (v1.0+, features = ["full"]): Async runtime
+  - `tokio-tungstenite` (v0.23.0): WebSocket support
+  - `futures-util` (v0.3): Async utilities
+  - `firestore` (v0.41.1): Firestore integration
+  - `serde` (v1.0+, features = ["derive"]): Serialization/deserialization
+
+## 6. Deliverables
+
+- Source code repository with clear README and setup instructions.
+- Dockerfile or deployment scripts for containerization.
+- Example configuration files (e.g., for authentication, Firestore).
+- Unit and integration tests for all major components.
+- Documentation for API endpoints, message formats, and integration points.
+
+## 7. Acceptance Criteria
+
+- The server can accept and manage multiple concurrent WebSocket connections.
+- All connections are authenticated and encrypted.
+- The server can send and receive JSON-encoded signaling messages.
+- Integration with Firestore is functional and documented.
+- Logging and metrics are available for monitoring.
+- All code is reviewed, tested, and documented.
+
+
+## 9. Required Crates
+- tokio = { version = "1.0", features = ["full"] }
+- tokio-tungstenite = "0.23.0"
+- futures-util = "0.3"
+- firestore = "0.41.1"
+- serde = { version = "1.0", features = ["derive"] }
+- config = { version = "0.14", features = ["toml"] }
+- firestore = "0.36.1"
+- async-trait = "0.1.73"
+
+
+## 9. Application Configuration Requirements
+- Add configuration file for the applicationcalled app-config.toml
+- Add the required lib for configuration as outlined in Required Crates, they are serde and config, and add the required code to make it easy to get configuraion any where in the app
+
+
+## 10. Database Requirements
+- Use GCP firestore for the database and created and use the repository pattern;
+
+
+
+

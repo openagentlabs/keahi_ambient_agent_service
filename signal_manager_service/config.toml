@@ -1,0 +1,17 @@
+[server]
+host = "127.0.0.1"
+port = 8080
+max_connections = 1000
+heartbeat_interval = 30
+
+[firestore]
+project_id = "your-project-id"
+credentials_path = null
+
+[auth]
+token_secret = "your-secret-key-change-in-production"
+token_expiry = 3600
+
+[logging]
+level = "info"
+format = "json" 
