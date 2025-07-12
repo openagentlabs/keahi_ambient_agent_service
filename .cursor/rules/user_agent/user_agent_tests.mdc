@@ -1,0 +1,15 @@
+---
+globs: *user_agent*
+alwaysApply: false
+---
+# User Agent Testing Requirements
+
+## 1. Testing requirements
+- Always generate unit test for componets to enable individual testing for software componets
+- Test should be seperate into test modules that align with the software compoents 
+- Tests should alos be in thre own seperate test directory and be place in subdiretory of test directory aligning with similier structure as the application directory structure# Signal Manager Testing Requirements
+
+## 1. Testing requirements
+- Always generate unit test for componets to enable individual testing for software componets
+- Test should be seperate into test modules that align with the software compoents 
+- Tests should alos be in thre own seperate test directory and be place in subdiretory of test directory aligning with similier structure as the application directory structure

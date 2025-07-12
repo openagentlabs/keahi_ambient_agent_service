@@ -1,6 +1,6 @@
 ---
-description: Code Quality Guidelines
-globs: 
+globs: *.rs,*.ts,*.tsx
+alwaysApply: false
 ---
 # Code Quality Guidelines
 
