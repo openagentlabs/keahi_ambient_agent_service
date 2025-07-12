@@ -23,6 +23,9 @@ max_message_size = 1048576  # 1MB
 project_id = "your-project-id"
 credentials_path = ""
 collection_prefix = "signal_sessions"
+database_name = "signal-manager-service-db"
+collection_name = "registered_clients"
+region = "europe-west2"
 
 [auth]
 # Authentication configuration
@@ -75,6 +78,6 @@ allowed_origins = ["*"]
 [gcp]
 credentials_path = "/home/keith/Downloads/keahi-ambient-agent-service-d9c5c0e3f93a.json"
 project_id = "your-gcp-project-id"
-pubsub_topic = "signal-manager-events"
-pubsub_subscription = "signal-manager-events-subscription"
-region = "europe-west2" 
+region = "europe-west2"
+
+# Firestore configuration moved to the [firestore] section above 

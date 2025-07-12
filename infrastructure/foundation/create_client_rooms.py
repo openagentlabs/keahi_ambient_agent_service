@@ -57,66 +57,43 @@ def main():
         logger.info(f"Connected to Firestore database: {database_name}")
 
         # Drop existing collection if it exists
-        collection_name = "registered_clients"
+        collection_name = "client_rooms"
         logger.info(f"Checking if '{collection_name}' collection exists...")
         drop_collection_if_exists(db, collection_name)
 
-        # Sample document data with room_id field
-        sample_doc = {
-            "id": "example_id",
-            "client_id": "example_client_id",
-            "auth_token": "example_auth_token",
-            "room_id": "room_123",  # Associated room ID
-            "capabilities": ["websocket", "video"],
-            "registered_at": firestore.SERVER_TIMESTAMP,
-            "last_seen": None,
-            "status": "Active",
-            "metadata": {
-                "version": "1.0",
-                "platform": "web"
+        # Sample document for client rooms collection
+        client_room_doc = {
+            "id": "client_room_example_id",
+            "room_uuid": "room_created_456",
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "room_data": {
+                "room_name": "New Meeting Room",
+                "room_type": "conference",
+                "settings": {
+                    "max_participants": 20,
+                    "recording_enabled": True,
+                    "chat_enabled": True
+                }
             },
-            "disconnected": False,
-            "disconnected_time": None,
+            "created_by": "client_creator_1",
+            "metadata": {
+                "note": "sample creation",
+                "template": "default_conference"
+            },
             "record_created_at": firestore.SERVER_TIMESTAMP
         }
 
-        # Sample document without room association
-        sample_doc_no_room = {
-            "id": "example_id_no_room",
-            "client_id": "example_client_id_no_room",
-            "auth_token": "example_auth_token_no_room",
-            "room_id": None,  # No room association
-            "capabilities": ["websocket"],
-            "registered_at": firestore.SERVER_TIMESTAMP,
-            "last_seen": None,
-            "status": "Active",
-            "metadata": {
-                "version": "1.0",
-                "platform": "mobile"
-            },
-            "disconnected": False,
-            "disconnected_time": None,
-            "record_created_at": firestore.SERVER_TIMESTAMP
-        }
-
-        # Add the documents to the collection
+        # Add the document to the collection
         collection_ref = db.collection(collection_name)
         logger.info(f"Creating '{collection_name}' collection...")
 
-        # Add document with room association
-        doc_ref = collection_ref.document(sample_doc["id"])
-        doc_ref.set(sample_doc)
-        logger.info(f"Created document with room association: {sample_doc['id']}")
+        doc_ref = collection_ref.document(client_room_doc["id"])
+        doc_ref.set(client_room_doc)
+        logger.info(f"Created client room document: {client_room_doc['id']}")
 
-        # Add document without room association
-        doc_ref_no_room = collection_ref.document(sample_doc_no_room["id"])
-        doc_ref_no_room.set(sample_doc_no_room)
-        logger.info(f"Created document without room association: {sample_doc_no_room['id']}")
-
-        print(f"Created '{collection_name}' collection in database '{database_name}' with sample documents:")
-        print(f"1. Document with room association: {sample_doc}")
-        print(f"2. Document without room association: {sample_doc_no_room}")
-        logger.info(f"Successfully created '{collection_name}' collection with sample documents")
+        print(f"Created '{collection_name}' collection in database '{database_name}' with sample document:")
+        print(f"Document: {client_room_doc}")
+        logger.info(f"Successfully created '{collection_name}' collection with sample document")
         
     except Exception as e:
         logger.error(f"Error creating '{collection_name}' collection: {e}")

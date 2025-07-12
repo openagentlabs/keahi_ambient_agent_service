@@ -9,8 +9,18 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct RegisterPayload {
+    version: String,
     client_id: String,
-    timestamp: u64,
+    auth_token: String,
+    capabilities: Option<Vec<String>>,
+    metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct UnregisterPayload {
+    version: String,
+    client_id: String,
+    auth_token: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,63 +79,46 @@ async fn test_ping(ws_url: &str) -> Result<()> {
     }
 }
 
-async fn test_register_json(ws_url: &str) -> Result<()> {
-    info!("Testing JSON REGISTER functionality...");
-    
+async fn test_register(ws_url: &str, client_id: &str, auth_token: &str) -> Result<()> {
+    info!("Testing REGISTER functionality...");
     let (ws_stream, _) = connect_async(ws_url)
         .await
         .context("Failed to connect to WebSocket server")?;
-    
     let (mut write, mut read) = ws_stream.split();
-    
-    // Create REGISTER payload
-    let frame_id = Uuid::new_v4().to_string();
+
     let payload = RegisterPayload {
-        client_id: format!("test_client_{}", Uuid::new_v4()),
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
+        version: "1.0".to_string(),
+        client_id: client_id.to_string(),
+        auth_token: auth_token.to_string(),
+        capabilities: Some(vec!["websocket".to_string()]),
+        metadata: Some(serde_json::json!({"platform": "test", "version": "1.0"})),
     };
-    
+
     let json_message = serde_json::json!({
-        "frame_id": frame_id,
         "type": 2,
         "payload": {
             "type": "REGISTER",
             "data": payload
         }
     });
-    
-    let message_text = serde_json::to_string(&json_message)
-        .context("Failed to serialize JSON message")?;
-    
-    info!("Sending JSON REGISTER message: {}", message_text);
-    
-    write.send(Message::Text(message_text))
-        .await
-        .context("Failed to send JSON message")?;
-    
-    // Wait for JSON response with timeout
+    let message_text = serde_json::to_string(&json_message)?;
+    info!("Sending REGISTER message: {}", message_text);
+    write.send(Message::Text(message_text)).await?;
+
     let json_timeout = Duration::from_secs(10);
     match timeout(json_timeout, read.next()).await {
         Ok(Some(Ok(Message::Text(response)))) => {
-            info!("Received JSON response: {}", response);
-            
-            // Parse the response
-            let response_json: serde_json::Value = serde_json::from_str(&response)
-                .context("Failed to parse JSON response")?;
-            
-            // Verify response structure
+            info!("Received REGISTER response: {}", response);
+            let response_json: serde_json::Value = serde_json::from_str(&response)?;
             if let Some(status) = response_json.get("status").and_then(|s| s.as_u64()) {
                 if status == 200 {
-                    info!("✅ JSON REGISTER test passed! Status: {}", status);
+                    info!("✅ REGISTER test passed! Status: {}", status);
                     Ok(())
                 } else {
-                    anyhow::bail!("JSON REGISTER failed with status: {}", status);
+                    anyhow::bail!("REGISTER failed with status: {}", status);
                 }
             } else {
-                anyhow::bail!("Invalid JSON response format: {}", response);
+                anyhow::bail!("Invalid REGISTER response format: {}", response);
             }
         }
         Ok(Some(Ok(msg))) => {
@@ -141,41 +134,91 @@ async fn test_register_json(ws_url: &str) -> Result<()> {
             anyhow::bail!("WebSocket connection closed unexpectedly");
         }
         Err(_) => {
-            anyhow::bail!("Timeout waiting for JSON response");
+            anyhow::bail!("Timeout waiting for REGISTER response");
+        }
+    }
+}
+
+async fn test_unregister(ws_url: &str, client_id: &str, auth_token: &str) -> Result<()> {
+    info!("Testing UNREGISTER functionality...");
+    let (ws_stream, _) = connect_async(ws_url)
+        .await
+        .context("Failed to connect to WebSocket server")?;
+    let (mut write, mut read) = ws_stream.split();
+
+    let payload = UnregisterPayload {
+        version: "1.0".to_string(),
+        client_id: client_id.to_string(),
+        auth_token: auth_token.to_string(),
+    };
+
+    let json_message = serde_json::json!({
+        "type": 2,
+        "payload": {
+            "type": "UNREGISTER",
+            "data": payload
+        }
+    });
+    let message_text = serde_json::to_string(&json_message)?;
+    info!("Sending UNREGISTER message: {}", message_text);
+    write.send(Message::Text(message_text)).await?;
+
+    let json_timeout = Duration::from_secs(10);
+    match timeout(json_timeout, read.next()).await {
+        Ok(Some(Ok(Message::Text(response)))) => {
+            info!("Received UNREGISTER response: {}", response);
+            let response_json: serde_json::Value = serde_json::from_str(&response)?;
+            if let Some(status) = response_json.get("status").and_then(|s| s.as_u64()) {
+                if status == 200 {
+                    info!("✅ UNREGISTER test passed! Status: {}", status);
+                    Ok(())
+                } else {
+                    anyhow::bail!("UNREGISTER failed with status: {}", status);
+                }
+            } else {
+                anyhow::bail!("Invalid UNREGISTER response format: {}", response);
+            }
+        }
+        Ok(Some(Ok(msg))) => {
+            anyhow::bail!("Unexpected message type: {:?}", msg);
+        }
+        Ok(Some(Ok(Message::Close(_)))) => {
+            anyhow::bail!("WebSocket connection closed by server");
+        }
+        Ok(Some(Err(e))) => {
+            anyhow::bail!("WebSocket error: {}", e);
+        }
+        Ok(None) => {
+            anyhow::bail!("WebSocket connection closed unexpectedly");
+        }
+        Err(_) => {
+            anyhow::bail!("Timeout waiting for UNREGISTER response");
         }
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
     tracing_subscriber::fmt::init();
-    
     let ws_url = std::env::var("WS_URL").unwrap_or_else(|_| {
         "ws://localhost:8080/ws".to_string()
     });
-    
     info!("Starting WebSocket test client");
     info!("Connecting to: {}", ws_url);
-    
+
     // Test Ping functionality
-    match test_ping(&ws_url).await {
-        Ok(_) => info!("Ping test completed successfully"),
-        Err(e) => {
-            error!("Ping test failed: {}", e);
-            return Err(e);
-        }
-    }
-    
-    // Test JSON REGISTER functionality
-    match test_register_json(&ws_url).await {
-        Ok(_) => info!("JSON REGISTER test completed successfully"),
-        Err(e) => {
-            error!("JSON REGISTER test failed: {}", e);
-            return Err(e);
-        }
-    }
-    
+    test_ping(&ws_url).await?;
+
+    // Use a fixed client_id and auth_token for register/unregister
+    let client_id = format!("test_client_{}", Uuid::new_v4());
+    let auth_token = "test_token";
+
+    // Test REGISTER functionality
+    test_register(&ws_url, &client_id, auth_token).await?;
+
+    // Test UNREGISTER functionality
+    test_unregister(&ws_url, &client_id, auth_token).await?;
+
     info!("All tests completed successfully!");
     Ok(())
 } 

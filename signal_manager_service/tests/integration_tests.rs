@@ -4,6 +4,7 @@ mod config;
 mod auth;
 mod protocol;
 mod server;
+mod database;
 
 // The modules are automatically discovered by Rust's test runner
 // No need to re-export them explicitly 

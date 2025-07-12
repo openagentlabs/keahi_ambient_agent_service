@@ -52,9 +52,6 @@ if [ ! -f "terraform.tfvars" ]; then
 # GCP Project Configuration
 project_id = "$CURRENT_PROJECT"
 
-# Region (London - europe-west2)
-region = "europe-west2"
-
 # Database name
 database_name = "signal-manager-service-db"
 EOF

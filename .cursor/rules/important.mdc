@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+# Important Instructions
+- When working with GCP, the project is: keahi-ambient-agent-service
+- The database used by /home/keith/Dev/keahi_ambient_agent_service/signal_manager_service is gcp firestore and is called signal-manager-service-db
+
+
+# Important Tools to Use
+- Always use gcloud CLI to access GCP to be able to find out information about the infrastructure deployed or about to be deployed. This tool is most valuable to you, and can save guessing by using it to get information direct from GCP or to validate after a deployment or during tetsing when values can be checked and verified. The tool, gcloud is alrady installed and configured.
+-Always use git for source control, git is alreasy installed and configured and connected with github.

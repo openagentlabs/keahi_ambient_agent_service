@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::message::{Message, Payload};
 use crate::session::SessionManager;
 use crate::auth::AuthManager;
-use futures_util::{SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};

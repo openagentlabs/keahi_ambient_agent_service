@@ -15,6 +15,10 @@ pub enum MessageType {
     SignalOffer = 0x10,
     SignalAnswer = 0x11,
     SignalIceCandidate = 0x12,
+    Register = 0x20,
+    RegisterAck = 0x21,
+    Unregister = 0x22,
+    UnregisterAck = 0x23,
     Error = 0xFF,
 }
 
@@ -47,6 +51,10 @@ pub enum Payload {
     SignalOffer(SignalPayload),
     SignalAnswer(SignalPayload),
     SignalIceCandidate(SignalPayload),
+    Register(RegisterPayload),
+    RegisterAck(RegisterAckPayload),
+    Unregister(UnregisterPayload),
+    UnregisterAck(UnregisterAckPayload),
     Error(ErrorPayload),
 }
 
@@ -82,6 +90,39 @@ pub struct HeartbeatAckPayload {
 pub struct SignalPayload {
     pub target_client_id: String,
     pub signal_data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterPayload {
+    pub version: String,
+    pub client_id: String,
+    pub auth_token: String,
+    pub capabilities: Option<Vec<String>>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterAckPayload {
+    pub version: String,
+    pub status: u16,
+    pub message: Option<String>,
+    pub client_id: Option<String>,
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnregisterPayload {
+    pub version: String,
+    pub client_id: String,
+    pub auth_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnregisterAckPayload {
+    pub version: String,
+    pub status: u16,
+    pub message: Option<String>,
+    pub client_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -198,6 +239,41 @@ impl Message {
                 buffer.extend_from_slice(p.auth_token.as_bytes());
                 Ok(buffer)
             }
+            Payload::Register(p) => {
+                let mut buffer = Vec::new();
+                buffer.push(p.version.len() as u8);
+                buffer.extend_from_slice(p.version.as_bytes());
+                buffer.push(p.client_id.len() as u8);
+                buffer.extend_from_slice(p.client_id.as_bytes());
+                buffer.push(p.auth_token.len() as u8);
+                buffer.extend_from_slice(p.auth_token.as_bytes());
+                if let Some(capabilities) = &p.capabilities {
+                    buffer.push(capabilities.len() as u8);
+                    for cap in capabilities {
+                        buffer.extend_from_slice(cap.as_bytes());
+                    }
+                } else {
+                    buffer.push(0);
+                }
+                if let Some(metadata) = &p.metadata {
+                    let json = serde_json::to_vec(metadata)?;
+                    buffer.push(json.len() as u8);
+                    buffer.extend_from_slice(&json);
+                } else {
+                    buffer.push(0);
+                }
+                Ok(buffer)
+            }
+            Payload::Unregister(p) => {
+                let mut buffer = Vec::new();
+                buffer.push(p.version.len() as u8);
+                buffer.extend_from_slice(p.version.as_bytes());
+                buffer.push(p.client_id.len() as u8);
+                buffer.extend_from_slice(p.client_id.as_bytes());
+                buffer.push(p.auth_token.len() as u8);
+                buffer.extend_from_slice(p.auth_token.as_bytes());
+                Ok(buffer)
+            }
             _ => Err(crate::Error::MessageParse("Binary serialization not implemented".to_string())),
         }
     }
@@ -209,6 +285,10 @@ impl Message {
             Payload::SignalOffer(p) | Payload::SignalAnswer(p) | Payload::SignalIceCandidate(p) => {
                 Ok(format!("{}:{}", p.target_client_id, p.signal_data))
             }
+            Payload::Register(p) => Ok(format!("{}:{}:{}", p.version, p.client_id, p.auth_token)),
+            Payload::RegisterAck(p) => Ok(format!("{}:{}:{}:{}:{}", p.version, p.status, p.message.as_deref().unwrap_or(""), p.client_id.as_deref().unwrap_or(""), p.session_id.as_deref().unwrap_or(""))),
+            Payload::Unregister(p) => Ok(format!("{}:{}:{}", p.version, p.client_id, p.auth_token)),
+            Payload::UnregisterAck(p) => Ok(format!("{}:{}:{}:{}", p.version, p.status, p.message.as_deref().unwrap_or(""), p.client_id.as_deref().unwrap_or(""))),
             Payload::Error(p) => Ok(format!("{}:{}", p.error_code, p.error_message)),
             _ => Err(crate::Error::MessageParse("Text serialization not implemented".to_string())),
         }
@@ -231,6 +311,75 @@ impl Message {
                 }
                 let auth_token = String::from_utf8_lossy(&data[1 + client_id_len + 1..1 + client_id_len + 1 + auth_token_len]).to_string();
                 Ok(Payload::Connect(ConnectPayload { client_id, auth_token }))
+            }
+            MessageType::Register => {
+                if data.len() < 2 {
+                    return Err(crate::Error::MessageParse("Invalid register payload".to_string()));
+                }
+                let version_len = data[0] as usize;
+                if data.len() < 1 + version_len + 1 {
+                    return Err(crate::Error::MessageParse("Invalid register payload".to_string()));
+                }
+                let version = String::from_utf8_lossy(&data[1..1 + version_len]).to_string();
+                let client_id_len = data[1 + version_len] as usize;
+                if data.len() < 1 + version_len + 1 + client_id_len + 1 {
+                    return Err(crate::Error::MessageParse("Invalid register payload".to_string()));
+                }
+                let client_id = String::from_utf8_lossy(&data[1 + version_len + 1..1 + version_len + 1 + client_id_len]).to_string();
+                let auth_token_len = data[1 + version_len + 1 + client_id_len] as usize;
+                if data.len() < 1 + version_len + 1 + client_id_len + 1 + auth_token_len {
+                    return Err(crate::Error::MessageParse("Invalid register payload".to_string()));
+                }
+                let auth_token = String::from_utf8_lossy(&data[1 + version_len + 1 + client_id_len + 1..1 + version_len + 1 + client_id_len + 1 + auth_token_len]).to_string();
+                let mut capabilities: Option<Vec<String>> = None;
+                let mut metadata: Option<serde_json::Value> = None;
+
+                let capabilities_start = 1 + version_len + 1 + client_id_len + 1 + auth_token_len;
+                let mut capabilities_len = 0;
+                if data.len() > capabilities_start {
+                    capabilities_len = data[capabilities_start] as usize;
+                    if data.len() < capabilities_start + 1 + capabilities_len {
+                        return Err(crate::Error::MessageParse("Invalid register payload".to_string()));
+                    }
+                    let mut caps = Vec::new();
+                    for i in 0..capabilities_len {
+                        caps.push(String::from_utf8_lossy(&data[capabilities_start + 1 + i..capabilities_start + 1 + i + 1]).to_string());
+                    }
+                    capabilities = Some(caps);
+                }
+
+                let metadata_start = capabilities_start + 1 + capabilities_len;
+                if data.len() > metadata_start {
+                    let metadata_len = data[metadata_start] as usize;
+                    if data.len() < metadata_start + 1 + metadata_len {
+                        return Err(crate::Error::MessageParse("Invalid register payload".to_string()));
+                    }
+                    let json: serde_json::Value = serde_json::from_slice(&data[metadata_start + 1..metadata_start + 1 + metadata_len])?;
+                    metadata = Some(json);
+                }
+
+                Ok(Payload::Register(RegisterPayload { version, client_id, auth_token, capabilities, metadata }))
+            }
+            MessageType::Unregister => {
+                if data.len() < 2 {
+                    return Err(crate::Error::MessageParse("Invalid unregister payload".to_string()));
+                }
+                let version_len = data[0] as usize;
+                if data.len() < 1 + version_len + 1 {
+                    return Err(crate::Error::MessageParse("Invalid unregister payload".to_string()));
+                }
+                let version = String::from_utf8_lossy(&data[1..1 + version_len]).to_string();
+                let client_id_len = data[1 + version_len] as usize;
+                if data.len() < 1 + version_len + 1 + client_id_len + 1 {
+                    return Err(crate::Error::MessageParse("Invalid unregister payload".to_string()));
+                }
+                let client_id = String::from_utf8_lossy(&data[1 + version_len + 1..1 + version_len + 1 + client_id_len]).to_string();
+                let auth_token_len = data[1 + version_len + 1 + client_id_len] as usize;
+                if data.len() < 1 + version_len + 1 + client_id_len + 1 + auth_token_len {
+                    return Err(crate::Error::MessageParse("Invalid unregister payload".to_string()));
+                }
+                let auth_token = String::from_utf8_lossy(&data[1 + version_len + 1 + client_id_len + 1..1 + version_len + 1 + client_id_len + 1 + auth_token_len]).to_string();
+                Ok(Payload::Unregister(UnregisterPayload { version, client_id, auth_token }))
             }
             _ => Err(crate::Error::MessageParse("Binary deserialization not implemented".to_string())),
         }
@@ -273,6 +422,35 @@ impl Message {
                     signal_data: parts[1].to_string(),
                 }))
             }
+            MessageType::Register => {
+                Ok(Payload::Register(RegisterPayload {
+                    version: parts[0].to_string(),
+                    client_id: parts[1].to_string(),
+                    auth_token: parts[2].to_string(),
+                    capabilities: None,
+                    metadata: None,
+                }))
+            }
+            MessageType::RegisterAck => {
+                let status = parts[0].parse::<u16>().map_err(|_| crate::Error::MessageParse("Invalid status".to_string()))?;
+                let message = if parts.len() > 1 { Some(parts[1].to_string()) } else { None };
+                let client_id = if parts.len() > 2 { Some(parts[2].to_string()) } else { None };
+                let session_id = if parts.len() > 3 { Some(parts[3].to_string()) } else { None };
+                Ok(Payload::RegisterAck(RegisterAckPayload { version: parts[0].to_string(), status, message, client_id, session_id }))
+            }
+            MessageType::Unregister => {
+                Ok(Payload::Unregister(UnregisterPayload {
+                    version: parts[0].to_string(),
+                    client_id: parts[1].to_string(),
+                    auth_token: parts[2].to_string(),
+                }))
+            }
+            MessageType::UnregisterAck => {
+                let status = parts[0].parse::<u16>().map_err(|_| crate::Error::MessageParse("Invalid status".to_string()))?;
+                let message = if parts.len() > 1 { Some(parts[1].to_string()) } else { None };
+                let client_id = if parts.len() > 2 { Some(parts[2].to_string()) } else { None };
+                Ok(Payload::UnregisterAck(UnregisterAckPayload { version: parts[0].to_string(), status, message, client_id }))
+            }
             MessageType::Error => {
                 let error_code = parts[0].parse::<u8>().map_err(|_| crate::Error::MessageParse("Invalid error code".to_string()))?;
                 Ok(Payload::Error(ErrorPayload {
@@ -308,6 +486,10 @@ impl MessageType {
             0x10 => Ok(MessageType::SignalOffer),
             0x11 => Ok(MessageType::SignalAnswer),
             0x12 => Ok(MessageType::SignalIceCandidate),
+            0x20 => Ok(MessageType::Register),
+            0x21 => Ok(MessageType::RegisterAck),
+            0x22 => Ok(MessageType::Unregister),
+            0x23 => Ok(MessageType::UnregisterAck),
             0xFF => Ok(MessageType::Error),
             _ => Err(crate::Error::InvalidMessageType(value)),
         }

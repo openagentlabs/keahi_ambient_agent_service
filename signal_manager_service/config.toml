@@ -6,7 +6,7 @@ heartbeat_interval = 30
 
 [firestore]
 project_id = "your-project-id"
-credentials_path = null
+credentials_path = ""
 
 [auth]
 token_secret = "your-secret-key-change-in-production"

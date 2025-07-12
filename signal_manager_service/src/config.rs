@@ -14,6 +14,7 @@ pub struct Config {
     pub session: SessionConfig,
     pub security: SecurityConfig,
     pub gcp: GcpConfig,
+    pub firestore: FirestoreConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,11 +81,19 @@ pub struct GcpConfig {
     pub credentials_path: String,
     /// GCP Project ID
     pub project_id: String,
-    /// Pub/Sub topic name for events
-    pub pubsub_topic: String,
-    /// Pub/Sub subscription name for events
-    pub pubsub_subscription: String,
     /// GCP region (e.g., "europe-west2" for London)
+    pub region: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FirestoreConfig {
+    /// Firestore database name
+    pub database_name: String,
+    /// Firestore collection name for registered clients
+    pub collection_name: String,
+    /// Firestore project ID (inherited from GCP config)
+    pub project_id: String,
+    /// Firestore region (inherited from GCP config)
     pub region: String,
 }
 
@@ -183,8 +192,12 @@ impl Default for Config {
             gcp: GcpConfig {
                 credentials_path: "/home/keith/Downloads/keahi-ambient-agent-service-d9c5c0e3f93a.json".to_string(),
                 project_id: "your-gcp-project-id".to_string(),
-                pubsub_topic: "signal-manager-events".to_string(),
-                pubsub_subscription: "signal-manager-events-subscription".to_string(),
+                region: "europe-west2".to_string(),
+            },
+            firestore: FirestoreConfig {
+                database_name: "signal-manager-service-db".to_string(),
+                collection_name: "registered_clients".to_string(),
+                project_id: "your-gcp-project-id".to_string(),
                 region: "europe-west2".to_string(),
             },
         }

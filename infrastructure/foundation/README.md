@@ -84,7 +84,6 @@ The infrastructure includes:
 ### Variables
 
 - `project_id`: Your GCP project ID (required)
-- `region`: GCP region for resources (defaults to `europe-west2` - London)
 - `database_name`: Name of the Firestore database (defaults to `signal-manager-service-db`)
 
 ### Firestore Database
