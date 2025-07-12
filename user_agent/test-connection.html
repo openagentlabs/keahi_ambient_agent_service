@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signal Manager Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .connecting { background-color: #fff3cd; color: #856404; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .connect { background-color: #28a745; color: white; }
+        .disconnect { background-color: #dc3545; color: white; }
+        .disabled { background-color: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>Signal Manager Service Test</h1>
+    
+    <div id="status" class="status disconnected">Disconnected</div>
+    
+    <div>
+        <button id="connectBtn" class="connect" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" class="disconnect disabled" onclick="disconnect()">Disconnect</button>
+    </div>
+    
+    <h3>Connection Log:</h3>
+    <div id="log" class="log"></div>
+
+    <script>
+        let ws = null;
+        let isConnected = false;
+        let isConnecting = false;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(status, className) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = status;
+            statusDiv.className = `status ${className}`;
+        }
+
+        function updateButtons() {
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            
+            if (isConnected) {
+                connectBtn.className = 'connect disabled';
+                connectBtn.disabled = true;
+                disconnectBtn.className = 'disconnect';
+                disconnectBtn.disabled = false;
+            } else {
+                connectBtn.className = isConnecting ? 'connect disabled' : 'connect';
+                connectBtn.disabled = isConnecting;
+                disconnectBtn.className = 'disconnect disabled';
+                disconnectBtn.disabled = true;
+            }
+        }
+
+        function connect() {
+            if (isConnected || isConnecting) return;
+            
+            isConnecting = true;
+            updateStatus('Connecting...', 'connecting');
+            updateButtons();
+            log('Attempting to connect to signal manager service...');
+            
+            try {
+                ws = new WebSocket('ws://127.0.0.1:8080');
+                
+                ws.onopen = function() {
+                    isConnected = true;
+                    isConnecting = false;
+                    updateStatus('Connected', 'connected');
+                    updateButtons();
+                    log('WebSocket connection established');
+                    
+                    // Send register message
+                    sendRegister();
+                };
+                
+                ws.onmessage = function(event) {
+                    log(`Received message: ${event.data}`);
+                    try {
+                        if (event.data instanceof ArrayBuffer) {
+                            const data = new Uint8Array(event.data);
+                            log(`Binary message received (${data.length} bytes)`);
+                            log(`First few bytes: ${Array.from(data.slice(0, 10)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+                        } else {
+                            const message = JSON.parse(event.data);
+                            log(`JSON message: ${JSON.stringify(message, null, 2)}`);
+                        }
+                    } catch (e) {
+                        log(`Error parsing message: ${e.message}`);
+                    }
+                };
+                
+                ws.onclose = function(event) {
+                    isConnected = false;
+                    isConnecting = false;
+                    updateStatus(`Disconnected (${event.code}: ${event.reason})`, 'disconnected');
+                    updateButtons();
+                    log(`WebSocket closed: ${event.code} - ${event.reason}`);
+                };
+                
+                ws.onerror = function(error) {
+                    isConnected = false;
+                    isConnecting = false;
+                    updateStatus('Connection Error', 'disconnected');
+                    updateButtons();
+                    log(`WebSocket error: ${error}`);
+                };
+                
+            } catch (error) {
+                isConnecting = false;
+                updateStatus('Connection Failed', 'disconnected');
+                updateButtons();
+                log(`Failed to create WebSocket: ${error.message}`);
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'Client disconnect');
+            }
+        }
+
+        function sendRegister() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('Cannot send register: WebSocket not open');
+                return;
+            }
+
+                    const message = {
+            message_type: 0x20, // Register
+            uuid: generateUUID(),
+            payload_type: 0x02, // JSON
+            payload: {
+                Register: {
+                    version: "1.0.0",
+                    client_id: "test_client_1",
+                    auth_token: "test_token_1",
+                    capabilities: ["websocket", "heartbeat"],
+                    metadata: {
+                        userAgent: navigator.userAgent,
+                        timestamp: Date.now(),
+                    },
+                },
+            },
+        };
+
+            try {
+                const binary = messageToBinary(message);
+                ws.send(binary);
+                log('Register message sent');
+            } catch (error) {
+                log(`Error sending register: ${error.message}`);
+            }
+        }
+
+        function messageToBinary(message) {
+            const START_BYTE = 0xAA;
+            const payloadJson = JSON.stringify(message.payload);
+            const payloadBytes = new TextEncoder().encode(payloadJson);
+            
+            const buffer = new ArrayBuffer(21 + payloadBytes.length);
+            const view = new DataView(buffer);
+            const uint8Array = new Uint8Array(buffer);
+            
+            // Start byte
+            uint8Array[0] = START_BYTE;
+            
+            // Message type
+            uint8Array[1] = message.message_type;
+            
+            // UUID (16 bytes)
+            const uuidBytes = uuidToBytes(message.uuid);
+            uint8Array.set(uuidBytes, 2);
+            
+            // Payload type
+            uint8Array[18] = message.payload_type;
+            
+            // Payload length (2 bytes, big endian)
+            view.setUint16(19, payloadBytes.length, false);
+            
+            // Payload
+            uint8Array.set(payloadBytes, 21);
+            
+            return buffer;
+        }
+
+        function uuidToBytes(uuid) {
+            const hex = uuid.replace(/-/g, '');
+            const bytes = new Uint8Array(16);
+            for (let i = 0; i < 16; i++) {
+                bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+            }
+            return bytes;
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // Initialize
+        updateButtons();
+        log('Test page loaded. Click Connect to test the signal manager service.');
+    </script>
+</body>
+</html> 

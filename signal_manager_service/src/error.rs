@@ -6,15 +6,13 @@ pub enum Error {
     Config(#[from] config::ConfigError),
 
     #[error("WebSocket error: {0}")]
-    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
+    WebSocket(Box<tokio_tungstenite::tungstenite::Error>),
 
     #[error("Authentication error: {0}")]
     Auth(String),
 
     #[error("Message parsing error: {0}")]
     MessageParse(String),
-
-
 
     #[error("Session error: {0}")]
     Session(String),
@@ -60,4 +58,10 @@ pub enum Error {
 
     #[error("Runtime error: {0}")]
     RuntimeError(String),
+}
+
+impl From<tokio_tungstenite::tungstenite::Error> for Error {
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> Self {
+        Error::WebSocket(Box::new(err))
+    }
 } 

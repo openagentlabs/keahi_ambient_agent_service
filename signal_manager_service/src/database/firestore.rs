@@ -12,6 +12,7 @@ use crate::database::{
     RoomCreatedRepository, RoomCreated, RoomCreationPayload,
     ClientInRoomRepository, ClientInRoom, ClientInRoomStatus,
     ClientInTerminatedRoomRepository, ClientInTerminatedRoom, ClientTerminationStatus,
+    WebRTCRoomRepository, WebRTCClientRepository,
 };
 
 /// Firestore implementation of the ClientRepository
@@ -42,6 +43,16 @@ pub struct FirestoreClientInRoomRepository {
 /// Note: Using in-memory storage for testing real database operations
 pub struct FirestoreClientInTerminatedRoomRepository {
     clients_in_terminated_rooms: Arc<Mutex<HashMap<String, ClientInTerminatedRoom>>>,
+}
+
+/// Firestore implementation of the WebRTCRoomRepository
+pub struct FirestoreWebRTCRoomRepository {
+    _config: Arc<Config>,
+}
+
+/// Firestore implementation of the WebRTCClientRepository
+pub struct FirestoreWebRTCClientRepository {
+    _config: Arc<Config>,
 }
 
 /// Firestore repository factory
@@ -91,6 +102,20 @@ impl FirestoreClientInTerminatedRoomRepository {
         Ok(Self {
             clients_in_terminated_rooms: Arc::new(Mutex::new(HashMap::new())),
         })
+    }
+}
+
+impl FirestoreWebRTCRoomRepository {
+    /// Create a new Firestore WebRTC room repository
+    pub fn new(config: Arc<Config>) -> Self {
+        Self { _config: config }
+    }
+}
+
+impl FirestoreWebRTCClientRepository {
+    /// Create a new Firestore WebRTC client repository
+    pub fn new(config: Arc<Config>) -> Self {
+        Self { _config: config }
     }
 }
 
@@ -356,7 +381,7 @@ impl ClientInRoomRepository for FirestoreClientInRoomRepository {
             client.update_status(status);
             Ok(client.clone())
         } else {
-            Err(crate::database::DatabaseError::NotFound(format!("Client in room {} not found", id)))
+            Err(crate::database::DatabaseError::NotFound(format!("Client in room {id} not found")))
         }
     }
 
@@ -366,7 +391,7 @@ impl ClientInRoomRepository for FirestoreClientInRoomRepository {
             client.update_last_activity();
             Ok(client.clone())
         } else {
-            Err(crate::database::DatabaseError::NotFound(format!("Client in room {} not found", id)))
+            Err(crate::database::DatabaseError::NotFound(format!("Client in room {id} not found")))
         }
     }
 
@@ -559,6 +584,16 @@ impl RepositoryFactory for FirestoreRepositoryFactory {
 
     async fn create_client_in_terminated_room_repository(&self) -> DatabaseResult<Arc<dyn ClientInTerminatedRoomRepository + Send + Sync>> {
         let repo = FirestoreClientInTerminatedRoomRepository::new(&self.config).await?;
+        Ok(Arc::new(repo))
+    }
+
+    async fn create_webrtc_room_repository(&self) -> DatabaseResult<Arc<dyn WebRTCRoomRepository + Send + Sync>> {
+        let repo = crate::database::firestore_webrtc_room_repository::FirestoreWebRTCRoomRepository::new(self.config.clone()).await?;
+        Ok(Arc::new(repo))
+    }
+
+    async fn create_webrtc_client_repository(&self) -> DatabaseResult<Arc<dyn WebRTCClientRepository + Send + Sync>> {
+        let repo = crate::database::firestore_webrtc_client_repository::FirestoreWebRTCClientRepository::new(self.config.clone()).await?;
         Ok(Arc::new(repo))
     }
 }

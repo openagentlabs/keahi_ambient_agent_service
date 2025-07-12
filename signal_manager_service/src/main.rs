@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
     // Initialize logging based on configuration
     let log_level = config.logging.level.parse::<Level>().unwrap_or(Level::INFO);
     let env_filter = EnvFilter::from_default_env()
-        .add_directive(format!("signal_manager_service={}", log_level).parse()?);
+        .add_directive(format!("signal_manager_service={log_level}").parse()?);
 
     let mut builder = fmt::Subscriber::builder()
         .with_env_filter(env_filter);

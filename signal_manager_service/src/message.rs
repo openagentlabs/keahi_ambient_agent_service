@@ -19,6 +19,12 @@ pub enum MessageType {
     RegisterAck = 0x21,
     Unregister = 0x22,
     UnregisterAck = 0x23,
+    WebRTCRoomCreate = 0x30,
+    WebRTCRoomCreateAck = 0x31,
+    WebRTCRoomJoin = 0x32,
+    WebRTCRoomJoinAck = 0x33,
+    WebRTCRoomLeave = 0x34,
+    WebRTCRoomLeaveAck = 0x35,
     Error = 0xFF,
 }
 
@@ -55,6 +61,12 @@ pub enum Payload {
     RegisterAck(RegisterAckPayload),
     Unregister(UnregisterPayload),
     UnregisterAck(UnregisterAckPayload),
+    WebRTCRoomCreate(WebRTCRoomCreatePayload),
+    WebRTCRoomCreateAck(WebRTCRoomCreateAckPayload),
+    WebRTCRoomJoin(WebRTCRoomJoinPayload),
+    WebRTCRoomJoinAck(WebRTCRoomJoinAckPayload),
+    WebRTCRoomLeave(WebRTCRoomLeavePayload),
+    WebRTCRoomLeaveAck(WebRTCRoomLeaveAckPayload),
     Error(ErrorPayload),
 }
 
@@ -131,6 +143,70 @@ pub struct ErrorPayload {
     pub error_message: String,
 }
 
+// WebRTC Room Management Payloads
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebRTCRoomCreatePayload {
+    pub version: String,
+    pub client_id: String,
+    pub auth_token: String,
+    pub role: String, // "sender" or "receiver"
+    pub offer_sdp: Option<String>, // Required for sender
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebRTCRoomCreateAckPayload {
+    pub version: String,
+    pub status: u16,
+    pub message: Option<String>,
+    pub room_id: Option<String>,
+    pub session_id: Option<String>,
+    pub app_id: Option<String>,
+    pub stun_url: Option<String>,
+    pub connection_info: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebRTCRoomJoinPayload {
+    pub version: String,
+    pub client_id: String,
+    pub auth_token: String,
+    pub room_id: String,
+    pub role: String, // "sender" or "receiver"
+    pub offer_sdp: Option<String>, // Required for sender
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebRTCRoomJoinAckPayload {
+    pub version: String,
+    pub status: u16,
+    pub message: Option<String>,
+    pub room_id: Option<String>,
+    pub session_id: Option<String>,
+    pub app_id: Option<String>,
+    pub stun_url: Option<String>,
+    pub connection_info: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebRTCRoomLeavePayload {
+    pub version: String,
+    pub client_id: String,
+    pub auth_token: String,
+    pub room_id: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebRTCRoomLeaveAckPayload {
+    pub version: String,
+    pub status: u16,
+    pub message: Option<String>,
+    pub room_id: Option<String>,
+    pub client_id: Option<String>,
+}
+
 impl Message {
     pub fn new(message_type: MessageType, payload: Payload) -> Self {
         Self {
@@ -159,8 +235,8 @@ impl Message {
         // Serialize payload based on type
         let payload_bytes = match &self.payload_type {
             PayloadType::Json => {
-                let json = serde_json::to_vec(&self.payload)?;
-                json
+                
+                serde_json::to_vec(&self.payload)?
             }
             PayloadType::Binary => {
                 self.payload_to_binary()?
@@ -490,6 +566,12 @@ impl MessageType {
             0x21 => Ok(MessageType::RegisterAck),
             0x22 => Ok(MessageType::Unregister),
             0x23 => Ok(MessageType::UnregisterAck),
+            0x30 => Ok(MessageType::WebRTCRoomCreate),
+            0x31 => Ok(MessageType::WebRTCRoomCreateAck),
+            0x32 => Ok(MessageType::WebRTCRoomJoin),
+            0x33 => Ok(MessageType::WebRTCRoomJoinAck),
+            0x34 => Ok(MessageType::WebRTCRoomLeave),
+            0x35 => Ok(MessageType::WebRTCRoomLeaveAck),
             0xFF => Ok(MessageType::Error),
             _ => Err(crate::Error::InvalidMessageType(value)),
         }

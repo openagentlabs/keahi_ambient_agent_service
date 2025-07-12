@@ -6,6 +6,10 @@ pub mod terminated_room_repository;
 pub mod room_created_repository;
 pub mod client_in_room_repository;
 pub mod client_in_terminated_room_repository;
+pub mod webrtc_room_repository;
+pub mod webrtc_client_repository;
+pub mod firestore_webrtc_room_repository;
+pub mod firestore_webrtc_client_repository;
 pub mod repository_factory;
 
 pub use models::*;
@@ -16,4 +20,6 @@ pub use terminated_room_repository::*;
 pub use room_created_repository::*;
 pub use client_in_room_repository::*;
 pub use client_in_terminated_room_repository::*;
+pub use webrtc_room_repository::*;
+pub use webrtc_client_repository::*;
 pub use repository_factory::*; 

@@ -88,7 +88,7 @@ async fn handle_unregister_internal(
                 message: Some("Unregistration successful".to_string()),
                 client_id: Some(payload.client_id),
             };
-            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
             (frame_id, response_json)
         }
         Ok(false) => {
@@ -100,10 +100,10 @@ async fn handle_unregister_internal(
             let response = UnregisterResponse {
                 version: CURRENT_VERSION.to_string(),
                 status: 500,
-                message: Some(format!("Unregistration failed: {}", e)),
+                message: Some(format!("Unregistration failed: {e}")),
                 client_id: None,
             };
-            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
             (frame_id, response_json)
         }
     }
@@ -132,6 +132,6 @@ fn error_response(frame_id: Uuid, status: u16, message: &str) -> (Uuid, String) 
         message: Some(message.to_string()),
         client_id: None,
     };
-    let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+    let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
     (frame_id, response_json)
 } 

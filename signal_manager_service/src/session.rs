@@ -147,7 +147,7 @@ impl SessionManager {
             .collect();
 
         for client_id in expired {
-            if let Some(_) = sessions.remove(&client_id) {
+            if sessions.remove(&client_id).is_some() {
                 info!("Removed expired session for client {}", client_id);
             }
         }
@@ -157,7 +157,7 @@ impl SessionManager {
         let sessions = self.sessions.read().await;
         let client_ids: Vec<String> = sessions
             .keys()
-            .filter(|id| exclude_client.map_or(true, |exclude| *id != exclude))
+            .filter(|id| exclude_client.is_none_or(|exclude| *id != exclude))
             .cloned()
             .collect();
 

@@ -12,6 +12,10 @@ use signal_manager_service::database::{
     ClientInRoomRepository, ClientInRoom,
     ClientInTerminatedRoomRepository, ClientInTerminatedRoom,
     ClientInRoomStatus, ClientTerminationStatus,
+    WebRTCRoomRepository, WebRTCClientRepository,
+    WebRTCRoom, WebRTCClient, WebRTCRoomCreationPayload, WebRTCClientRegistrationPayload,
+    WebRTCRoomStatus, WebRTCClientStatus, ClientRole,
+    DatabaseError,
 };
 
 /// Mock implementation of ClientRepository for testing
@@ -37,6 +41,14 @@ pub struct MockClientInRoomRepository {
 /// Mock implementation of ClientInTerminatedRoomRepository for testing
 pub struct MockClientInTerminatedRoomRepository {
     clients_in_terminated_room: Arc<Mutex<HashMap<String, ClientInTerminatedRoom>>>,
+}
+
+pub struct MockWebRTCRoomRepository {
+    rooms: Arc<Mutex<HashMap<String, WebRTCRoom>>>,
+}
+
+pub struct MockWebRTCClientRepository {
+    clients: Arc<Mutex<HashMap<String, WebRTCClient>>>,
 }
 
 /// Mock repository factory for testing
@@ -78,6 +90,22 @@ impl MockClientInTerminatedRoomRepository {
     pub fn new() -> Self {
         Self {
             clients_in_terminated_room: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl MockWebRTCRoomRepository {
+    pub fn new() -> Self {
+        Self {
+            rooms: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+impl MockWebRTCClientRepository {
+    pub fn new() -> Self {
+        Self {
+            clients: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -525,6 +553,238 @@ impl RepositoryFactory for MockRepositoryFactory {
 
     async fn create_client_in_terminated_room_repository(&self) -> DatabaseResult<Arc<dyn ClientInTerminatedRoomRepository + Send + Sync>> {
         Ok(Arc::new(MockClientInTerminatedRoomRepository::new()))
+    }
+
+    async fn create_webrtc_room_repository(&self) -> DatabaseResult<Arc<dyn WebRTCRoomRepository + Send + Sync>> {
+        Ok(Arc::new(MockWebRTCRoomRepository::new()))
+    }
+
+    async fn create_webrtc_client_repository(&self) -> DatabaseResult<Arc<dyn WebRTCClientRepository + Send + Sync>> {
+        Ok(Arc::new(MockWebRTCClientRepository::new()))
+    }
+}
+
+#[async_trait]
+impl WebRTCRoomRepository for MockWebRTCRoomRepository {
+    async fn create_room(&self, payload: WebRTCRoomCreationPayload) -> Result<WebRTCRoom, DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        
+        let room = WebRTCRoom::new(
+            payload.room_id.clone(),
+            payload.app_id.clone(),
+            payload.sender_client_id.clone(),
+            payload.receiver_client_id.clone(),
+            payload.session_id.clone(),
+            payload.metadata.clone(),
+        );
+        
+        rooms.insert(room.room_id.clone(), room.clone());
+        Ok(room)
+    }
+    
+    async fn get_room_by_id(&self, room_id: &str) -> Result<Option<WebRTCRoom>, DatabaseError> {
+        let rooms = self.rooms.lock().await;
+        Ok(rooms.get(room_id).cloned())
+    }
+    
+    async fn get_room_by_uuid(&self, room_uuid: &str) -> Result<Option<WebRTCRoom>, DatabaseError> {
+        let rooms = self.rooms.lock().await;
+        Ok(rooms.values().find(|r| r.id == room_uuid).cloned())
+    }
+    
+    async fn update_room_status(&self, room_id: &str, status: WebRTCRoomStatus) -> Result<(), DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        if let Some(room) = rooms.get_mut(room_id) {
+            room.update_status(status);
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Room {} not found", room_id)))
+        }
+    }
+    
+    async fn set_sender_client_id(&self, room_id: &str, client_id: &str) -> Result<(), DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        if let Some(room) = rooms.get_mut(room_id) {
+            room.set_sender_client_id(client_id.to_string());
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Room {} not found", room_id)))
+        }
+    }
+    
+    async fn set_receiver_client_id(&self, room_id: &str, client_id: &str) -> Result<(), DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        if let Some(room) = rooms.get_mut(room_id) {
+            room.set_receiver_client_id(client_id.to_string());
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Room {} not found", room_id)))
+        }
+    }
+    
+    async fn set_session_id(&self, room_id: &str, session_id: &str) -> Result<(), DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        if let Some(room) = rooms.get_mut(room_id) {
+            room.set_session_id(session_id.to_string());
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Room {} not found", room_id)))
+        }
+    }
+    
+    async fn get_active_rooms(&self) -> Result<Vec<WebRTCRoom>, DatabaseError> {
+        let rooms = self.rooms.lock().await;
+        Ok(rooms.values().filter(|r| r.is_active()).cloned().collect())
+    }
+    
+    async fn get_rooms_by_client_id(&self, client_id: &str) -> Result<Vec<WebRTCRoom>, DatabaseError> {
+        let rooms = self.rooms.lock().await;
+        Ok(rooms.values()
+            .filter(|r| r.sender_client_id.as_deref() == Some(client_id) || 
+                        r.receiver_client_id.as_deref() == Some(client_id))
+            .cloned()
+            .collect())
+    }
+    
+    async fn terminate_room(&self, room_id: &str, _reason: &str) -> Result<(), DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        if let Some(room) = rooms.get_mut(room_id) {
+            room.update_status(WebRTCRoomStatus::Terminated);
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Room {} not found", room_id)))
+        }
+    }
+    
+    async fn delete_room(&self, room_id: &str) -> Result<(), DatabaseError> {
+        let mut rooms = self.rooms.lock().await;
+        if rooms.remove(room_id).is_some() {
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Room {} not found", room_id)))
+        }
+    }
+    
+    async fn get_room_count(&self) -> Result<usize, DatabaseError> {
+        let rooms = self.rooms.lock().await;
+        Ok(rooms.len())
+    }
+}
+
+#[async_trait]
+impl WebRTCClientRepository for MockWebRTCClientRepository {
+    async fn register_client(&self, payload: WebRTCClientRegistrationPayload) -> Result<WebRTCClient, DatabaseError> {
+        let mut clients = self.clients.lock().await;
+        
+        let client = WebRTCClient::new(
+            payload.client_id.clone(),
+            payload.room_id.clone(),
+            payload.role.clone(),
+            payload.session_id.clone(),
+            payload.metadata.clone(),
+        );
+        
+        clients.insert(client.client_id.clone(), client.clone());
+        Ok(client)
+    }
+    
+    async fn get_client_by_id(&self, client_id: &str) -> Result<Option<WebRTCClient>, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.get(client_id).cloned())
+    }
+    
+    async fn get_clients_by_room_id(&self, room_id: &str) -> Result<Vec<WebRTCClient>, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.values().filter(|c| c.room_id == room_id).cloned().collect())
+    }
+    
+    async fn get_clients_by_role(&self, room_id: &str, role: ClientRole) -> Result<Vec<WebRTCClient>, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.values()
+            .filter(|c| c.room_id == room_id && c.role == role)
+            .cloned()
+            .collect())
+    }
+    
+    async fn update_client_status(&self, client_id: &str, status: WebRTCClientStatus) -> Result<(), DatabaseError> {
+        let mut clients = self.clients.lock().await;
+        if let Some(client) = clients.get_mut(client_id) {
+            client.update_status(status);
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Client {} not found", client_id)))
+        }
+    }
+    
+    async fn set_session_id(&self, client_id: &str, session_id: &str) -> Result<(), DatabaseError> {
+        let mut clients = self.clients.lock().await;
+        if let Some(client) = clients.get_mut(client_id) {
+            client.set_session_id(session_id.to_string());
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Client {} not found", client_id)))
+        }
+    }
+    
+    async fn get_client_by_session_id(&self, session_id: &str) -> Result<Option<WebRTCClient>, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.values().find(|c| c.session_id.as_deref() == Some(session_id)).cloned())
+    }
+    
+    async fn get_active_clients(&self) -> Result<Vec<WebRTCClient>, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.values().filter(|c| c.is_active()).cloned().collect())
+    }
+    
+    async fn get_active_clients_in_room(&self, room_id: &str) -> Result<Vec<WebRTCClient>, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.values()
+            .filter(|c| c.room_id == room_id && c.is_active())
+            .cloned()
+            .collect())
+    }
+    
+    async fn disconnect_client(&self, client_id: &str, _reason: &str) -> Result<(), DatabaseError> {
+        let mut clients = self.clients.lock().await;
+        if let Some(client) = clients.get_mut(client_id) {
+            client.update_status(WebRTCClientStatus::Disconnected);
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Client {} not found", client_id)))
+        }
+    }
+    
+    async fn remove_client_from_room(&self, client_id: &str, room_id: &str) -> Result<(), DatabaseError> {
+        let mut clients = self.clients.lock().await;
+        if let Some(client) = clients.get_mut(client_id) {
+            if client.room_id == room_id {
+                client.update_status(WebRTCClientStatus::Inactive);
+                Ok(())
+            } else {
+                Err(DatabaseError::Validation(format!("Client {} not in room {}", client_id, room_id)))
+            }
+        } else {
+            Err(DatabaseError::NotFound(format!("Client {} not found", client_id)))
+        }
+    }
+    
+    async fn delete_client(&self, client_id: &str) -> Result<(), DatabaseError> {
+        let mut clients = self.clients.lock().await;
+        if clients.remove(client_id).is_some() {
+            Ok(())
+        } else {
+            Err(DatabaseError::NotFound(format!("Client {} not found", client_id)))
+        }
+    }
+    
+    async fn get_client_count(&self) -> Result<usize, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.len())
+    }
+    
+    async fn get_client_count_in_room(&self, room_id: &str) -> Result<usize, DatabaseError> {
+        let clients = self.clients.lock().await;
+        Ok(clients.values().filter(|c| c.room_id == room_id).count())
     }
 }
 

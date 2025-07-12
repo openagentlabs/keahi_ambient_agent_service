@@ -15,6 +15,7 @@ pub struct Config {
     pub security: SecurityConfig,
     pub gcp: GcpConfig,
     pub firestore: FirestoreConfig,
+    pub cloudflare: CloudflareConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +96,18 @@ pub struct FirestoreConfig {
     pub project_id: String,
     /// Firestore region (inherited from GCP config)
     pub region: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloudflareConfig {
+    /// Cloudflare Realtime App ID
+    pub app_id: String,
+    /// Cloudflare Realtime App Secret
+    pub app_secret: String,
+    /// Cloudflare Realtime API base URL
+    pub base_url: String,
+    /// Cloudflare STUN server URL
+    pub stun_url: String,
 }
 
 impl Config {
@@ -199,6 +212,12 @@ impl Default for Config {
                 collection_name: "registered_clients".to_string(),
                 project_id: "your-gcp-project-id".to_string(),
                 region: "europe-west2".to_string(),
+            },
+            cloudflare: CloudflareConfig {
+                app_id: "your-cloudflare-app-id".to_string(),
+                app_secret: "your-cloudflare-app-secret".to_string(),
+                base_url: "https://rtc.live.cloudflare.com/v1".to_string(),
+                stun_url: "stun:stun.cloudflare.com:3478".to_string(),
             },
         }
     }

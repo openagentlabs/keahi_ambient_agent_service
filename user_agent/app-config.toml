@@ -1,0 +1,15 @@
+[signal_manager]
+url = "127.0.0.1"
+port = 8080
+client_id = "user_agent_client"
+auth_token = "test_token_1"
+version = "1.0.0"
+heartbeat_interval = 5
+timeout = 10
+reconnect_attempts = 5
+reconnect_delay = 1
+
+[app]
+name = "User Agent"
+version = "1.0.0"
+debug = true 

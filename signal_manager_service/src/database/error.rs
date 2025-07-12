@@ -28,6 +28,12 @@ pub enum DatabaseError {
     
     #[error("Configuration error: {0}")]
     Config(String),
+    
+    #[error("Read error: {0}")]
+    Read(String),
+    
+    #[error("Write error: {0}")]
+    Write(String),
 }
 
 pub type DatabaseResult<T> = Result<T, DatabaseError>; 

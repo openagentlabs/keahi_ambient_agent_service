@@ -1,71 +1,108 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { invoke } from "@tauri-apps/api/core";
-
-interface SystemInfo {
-  os: string;
-  arch: string;
-  hostname: string;
-  username: string;
-}
-
-interface UserAgentInfo {
-  name: string;
-  version: string;
-  capabilities: string[];
-}
+import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { useSignalManager } from "@/hooks/useSignalManager";
+import { ConnectionStateType } from "@/lib/signal-manager-client";
 
 export default function App() {
-  const [count, setCount] = React.useState(0);
-  const [systemInfo, setSystemInfo] = React.useState<SystemInfo | null>(null);
-  const [userAgentInfo, setUserAgentInfo] = React.useState<UserAgentInfo | null>(null);
-  const [commandOutput, setCommandOutput] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(false);
+  const {
+    isConnected,
+    isConnecting,
+    isReconnecting,
+    lastHeartbeat,
+    reconnectAttempts,
+    error,
+    connect,
+    disconnect,
+    messages,
+    stateType,
+    currentRetryInterval,
+    nextRetryTime,
+  } = useSignalManager();
 
-  const getSystemInfo = async () => {
-    setLoading(true);
-    try {
-      const info = await invoke<SystemInfo>("get_system_info");
-      setSystemInfo(info);
-    } catch (error) {
-      console.error("Failed to get system info:", error);
-    }
-    setLoading(false);
+  const handleConnect = async () => {
+    await connect();
   };
 
-  const getUserAgentInfo = async () => {
-    setLoading(true);
-    try {
-      const info = await invoke<UserAgentInfo>("get_user_agent_info");
-      setUserAgentInfo(info);
-    } catch (error) {
-      console.error("Failed to get user agent info:", error);
-    }
-    setLoading(false);
+  const handleDisconnect = () => {
+    disconnect();
   };
 
-  const executeCommand = async () => {
-    setLoading(true);
-    try {
-      const output = await invoke<string>("execute_command", {
-        command: "ls",
-        args: ["-la"]
-      });
-      setCommandOutput(output);
-    } catch (error) {
-      console.error("Failed to execute command:", error);
-    }
-    setLoading(false);
-  };
+  // Determine button states
+  const canConnect = !isConnected && !isConnecting && !isReconnecting;
+  const canDisconnect = isConnected && !isConnecting && !isReconnecting;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-blue-900/60">
-      <button
-        className="px-3 py-1 text-sm rounded bg-blue-600 text-white shadow hover:bg-blue-700 transition"
-        onClick={() => setCount((c) => c + 1)}
-      >
-        Click
-      </button>
+      <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+
+        
+
+        
+        {/* Status message */}
+        <div className="text-sm text-gray-600 mb-4 text-center">
+          {isConnected && '✅ Connected to server'}
+          {isConnecting && '🔄 Connecting to server...'}
+          {isReconnecting && `🔄 Reconnecting to server... (Attempt ${reconnectAttempts})`}
+          {!isConnected && !isConnecting && !isReconnecting && '❌ Disconnected from server'}
+        </div>
+        
+
+        
+        <div className="space-y-4">
+          <ConnectionStatus 
+            state={{
+              stateType,
+              isConnected,
+              isConnecting,
+              isReconnecting,
+              lastHeartbeat,
+              reconnectAttempts,
+              currentRetryInterval,
+              nextRetryTime,
+            }}
+            error={error}
+          />
+          
+          <div className="flex space-x-2">
+            <Button
+              onClick={handleConnect}
+              disabled={!canConnect}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {isConnecting ? 'Connecting...' : isReconnecting ? 'Reconnecting...' : 'Connect'}
+            </Button>
+            
+            <Button
+              onClick={handleDisconnect}
+              disabled={!canDisconnect}
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400"
+            >
+              Disconnect
+            </Button>
+          </div>
+          
+          {messages.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">
+                Recent Messages ({messages.length})
+              </h3>
+              <div className="max-h-32 overflow-y-auto space-y-1">
+                {messages.slice(-5).map((message: any, index: number) => (
+                  <div key={index} className="text-xs bg-gray-50 p-2 rounded">
+                    <div className="font-mono">
+                      Type: 0x{message.message_type.toString(16).padStart(2, '0')}
+                    </div>
+                    <div className="text-gray-500">
+                      {new Date().toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

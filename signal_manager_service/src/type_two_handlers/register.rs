@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::config::get_config;
 use crate::database::{
@@ -32,27 +32,45 @@ pub struct RegisterResponse {
 }
 
 // Test helper struct for integration tests
+#[derive(Clone)]
 pub struct RegisterHandler {
-    repository: Arc<dyn ClientRepository + Send + Sync>,
+    config: Arc<Config>,
 }
 
 impl RegisterHandler {
-    pub fn new(_config: Arc<Config>, repository: Arc<dyn ClientRepository + Send + Sync>) -> Self {
-        Self { repository }
+    pub fn new(config: Arc<Config>) -> Self {
+        Self { config }
     }
 
-    pub async fn handle_register(&self, message: crate::message::Message) -> Result<crate::message::Message, Box<dyn std::error::Error>> {
+    pub async fn handle_register(&self, message: crate::message::Message) -> Result<crate::message::Message, Box<dyn std::error::Error + Send + Sync>> {
         let frame_id = message.uuid;
         let payload = match &message.payload {
             crate::message::Payload::Register(payload) => payload,
             _ => return Err("Invalid message type".into()),
         };
 
+        // Create repository when needed
+        let factory = FirestoreRepositoryFactory::new(self.config.clone());
+        let repository = match factory.create_client_repository().await {
+            Ok(repo) => repo,
+            Err(e) => {
+                error!("Failed to create repository: {}", e);
+                return Err("Database connection failed".into());
+            }
+        };
+
         let raw_payload = serde_json::to_value(payload)?;
-        let (_, response_json) = handle_register_internal(frame_id, raw_payload, self.repository.clone()).await;
+        let (_, response_json) = handle_register_internal(frame_id, raw_payload, repository.clone()).await;
         
         let response_payload: RegisterResponse = serde_json::from_str(&response_json)?;
         
+        // Debug logging for registration
+        if response_payload.status == 200 {
+            info!("[REGISTER] Client registered: id={}, session_id={:?}, message={:?}", response_payload.client_id.as_deref().unwrap_or("<none>"), response_payload.session_id, response_payload.message);
+        } else {
+            warn!("[REGISTER] Registration failed: id={:?}, status={}, message={:?}", response_payload.client_id, response_payload.status, response_payload.message);
+        }
+
         let message_payload = if response_payload.status == 200 {
             crate::message::Payload::RegisterAck(crate::message::RegisterAckPayload {
                 version: response_payload.version,
@@ -74,18 +92,35 @@ impl RegisterHandler {
         ))
     }
 
-    pub async fn handle_unregister(&self, message: crate::message::Message) -> Result<crate::message::Message, Box<dyn std::error::Error>> {
+    pub async fn handle_unregister(&self, message: crate::message::Message) -> Result<crate::message::Message, Box<dyn std::error::Error + Send + Sync>> {
         let frame_id = message.uuid;
         let payload = match &message.payload {
             crate::message::Payload::Unregister(payload) => payload,
             _ => return Err("Invalid message type".into()),
         };
 
+        // Create repository when needed
+        let factory = FirestoreRepositoryFactory::new(self.config.clone());
+        let repository = match factory.create_client_repository().await {
+            Ok(repo) => repo,
+            Err(e) => {
+                error!("Failed to create repository: {}", e);
+                return Err("Database connection failed".into());
+            }
+        };
+
         let raw_payload = serde_json::to_value(payload)?;
-        let (_, response_json) = handle_unregister_internal(frame_id, raw_payload, self.repository.clone()).await;
+        let (_, response_json) = handle_unregister_internal(frame_id, raw_payload, repository.clone()).await;
         
         let response_payload: UnregisterResponse = serde_json::from_str(&response_json)?;
         
+        // Debug logging for unregister
+        if response_payload.status == 200 {
+            info!("[UNREGISTER] Client unregistered: id={:?}, message={:?}", response_payload.client_id, response_payload.message);
+        } else {
+            warn!("[UNREGISTER] Unregister failed: id={:?}, status={}, message={:?}", response_payload.client_id, response_payload.status, response_payload.message);
+        }
+
         let message_payload = if response_payload.status == 200 {
             crate::message::Payload::UnregisterAck(crate::message::UnregisterAckPayload {
                 version: response_payload.version,
@@ -176,7 +211,7 @@ async fn handle_register_internal(
                 client_id: Some(client.client_id),
                 session_id: Some(session_id),
             };
-            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
             (frame_id, response_json)
         }
         Err(e) => {
@@ -190,11 +225,11 @@ async fn handle_register_internal(
             let response = RegisterResponse {
                 version: CURRENT_VERSION.to_string(),
                 status,
-                message: Some(format!("Registration failed: {}", e)),
+                message: Some(format!("Registration failed: {e}")),
                 client_id: None,
                 session_id: None,
             };
-            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
             (frame_id, response_json)
         }
     }
@@ -263,7 +298,7 @@ async fn handle_unregister_internal(
                 message: Some("Unregistration successful".to_string()),
                 client_id: Some(payload.client_id),
             };
-            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
             (frame_id, response_json)
         }
         Ok(false) => {
@@ -275,10 +310,10 @@ async fn handle_unregister_internal(
             let response = UnregisterResponse {
                 version: CURRENT_VERSION.to_string(),
                 status: 500,
-                message: Some(format!("Unregistration failed: {}", e)),
+                message: Some(format!("Unregistration failed: {e}")),
                 client_id: None,
             };
-            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+            let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
             (frame_id, response_json)
         }
     }
@@ -308,6 +343,6 @@ fn error_response(frame_id: Uuid, status: u16, message: &str) -> (Uuid, String) 
         client_id: None,
         session_id: None,
     };
-    let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{}\",\"status\":500}}", CURRENT_VERSION));
+    let response_json = serde_json::to_string(&response).unwrap_or_else(|_| format!("{{\"version\":\"{CURRENT_VERSION}\",\"status\":500}}"));
     (frame_id, response_json)
 } 

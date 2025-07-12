@@ -1,150 +1,160 @@
----
-alwaysApply: false
----
-# Signaling Protocol Specification
+# Signal Manager Service Protocol Requirements (as Implemented)
 
 ## 1. Protocol Overview
 
-The signaling protocol defines a custom binary WebSocket message format for efficient, reliable communication between clients and backend services.
+The protocol is a custom binary WebSocket protocol for real-time signaling, registration, and WebRTC room management. It is designed for efficient, reliable, and extensible communication between clients and the backend service.
 
 ### 1.1. Message Structure
 ```
 [Start Byte (1 byte)] [Message Type (1 byte)] [Message UUID (16 bytes)] [Payload Type (1 byte)] [Payload Length (2 bytes)] [Payload (N bytes)]
 ```
-- **Start Byte (1 byte):** Fixed indicator byte (e.g., 0xAA) to identify the start of a message
-- **Message Type (1 byte):** Identifies the type of signaling message
-- **Message UUID (16 bytes):** Fixed-length UUID (128-bit) for unique message identification and correlation
-- **Payload Type (1 byte):** Indicates the format of the payload data
-- **Payload Length (2 bytes):** 16-bit unsigned integer indicating the length of the payload in bytes
-- **Payload (N bytes):** Variable-length data containing the actual message content in the specified format
+- **Start Byte:** 0xAA (170)
+- **Message Type:** 1 byte (see below)
+- **Message UUID:** 16 bytes (UUID v4)
+- **Payload Type:** 1 byte (see below)
+- **Payload Length:** 2 bytes (big-endian)
+- **Payload:** N bytes (format depends on Payload Type)
 
-### 1.2. Message Types
+### 1.2. Message Types (as coded)
 | Type | Value | Description |
 |------|-------|-------------|
 | CONNECT | 0x01 | Client connection request |
 | CONNECT_ACK | 0x02 | Connection acknowledgment |
-| DISCONNECT | 0x03 | Client disconnection notification |
-| HEARTBEAT | 0x04 | Keep-alive heartbeat |
-| HEARTBEAT_ACK | 0x05 | Heartbeat acknowledgment |
+| DISCONNECT | 0x03 | Client disconnection |
+| HEARTBEAT | 0x04 | Client heartbeat (ping) |
+| HEARTBEAT_ACK | 0x05 | Heartbeat acknowledgment (pong) |
 | SIGNAL_OFFER | 0x10 | WebRTC offer signal |
 | SIGNAL_ANSWER | 0x11 | WebRTC answer signal |
 | SIGNAL_ICE_CANDIDATE | 0x12 | ICE candidate signal |
+| REGISTER | 0x20 | Client registration |
+| REGISTER_ACK | 0x21 | Registration acknowledgment |
+| UNREGISTER | 0x22 | Client unregistration |
+| UNREGISTER_ACK | 0x23 | Unregistration acknowledgment |
+| WEBRTC_ROOM_CREATE | 0x30 | Create WebRTC room |
+| WEBRTC_ROOM_CREATE_ACK | 0x31 | Room creation acknowledgment |
+| WEBRTC_ROOM_JOIN | 0x32 | Join WebRTC room |
+| WEBRTC_ROOM_JOIN_ACK | 0x33 | Room join acknowledgment |
+| WEBRTC_ROOM_LEAVE | 0x34 | Leave WebRTC room |
+| WEBRTC_ROOM_LEAVE_ACK | 0x35 | Room leave acknowledgment |
 | ERROR | 0xFF | Error message |
 
 ### 1.3. Payload Types
 | Type | Value | Description |
 |------|-------|-------------|
 | BINARY | 0x01 | Raw binary data |
-| JSON | 0x02 | JSON-encoded data |
+| JSON | 0x02 | JSON-encoded data (default) |
 | TEXT | 0x03 | Plain text data |
 | PROTOBUF | 0x04 | Protocol Buffer encoded data |
 | CBOR | 0x05 | CBOR (Concise Binary Object Representation) |
 
-### 1.4. Payload Formats
-Each message type has specific payload requirements. The payload format depends on the Payload Type byte:
+### 1.4. Payload Formats (as coded)
 
-**CONNECT (0x01):**
-- **BINARY (0x01):** `[Client ID Length (1 byte)] [Client ID (N bytes)] [Auth Token Length (1 byte)] [Auth Token (N bytes)]`
-- **JSON (0x02):** `{"client_id": "string", "auth_token": "string"}`
-- **TEXT (0x03):** `client_id:auth_token` (colon-separated)
+#### CONNECT (0x01)
+- JSON: `{ "client_id": "string", "auth_token": "string" }`
+- BINARY: `[Client ID Length (1)] [Client ID] [Auth Token Length (1)] [Auth Token]`
+- TEXT: `client_id:auth_token`
 
-**CONNECT_ACK (0x02):**
-- **BINARY (0x01):** `[Status (1 byte)] [Session ID Length (1 byte)] [Session ID (N bytes)]`
-- **JSON (0x02):** `{"status": "success|error", "session_id": "string"}`
-- **TEXT (0x03):** `status:session_id` (colon-separated)
+#### CONNECT_ACK (0x02)
+- JSON: `{ "status": "success|error", "session_id": "string" }`
+- TEXT: `status:session_id`
 
-**SIGNAL_OFFER/ANSWER/ICE_CANDIDATE (0x10-0x12):**
-- **BINARY (0x01):** `[Target Client ID Length (1 byte)] [Target Client ID (N bytes)] [Signal Data Length (2 bytes)] [Signal Data (N bytes)]`
-- **JSON (0x02):** `{"target_client_id": "string", "signal_data": "base64_encoded_string"}`
-- **TEXT (0x03):** `target_client_id:signal_data` (colon-separated)
+#### DISCONNECT (0x03)
+- JSON: `{ "client_id": "string", "reason": "string" }`
 
-**ERROR (0xFF):**
-- **BINARY (0x01):** `[Error Code (1 byte)] [Error Message Length (1 byte)] [Error Message (N bytes)]`
-- **JSON (0x02):** `{"error_code": 123, "error_message": "string"}`
-- **TEXT (0x03):** `error_code:error_message` (colon-separated)
+#### HEARTBEAT (0x04)
+- JSON: `{ "timestamp": u64 }`
 
-### 1.5. Message Handling
-- Parse, validate, and route binary messages according to type and payload.
-- Validate message type, payload type, and payload length.
-- Support serialization/deserialization for all payload formats (binary, JSON, text).
-- Handle errors and protocol violations robustly.
+#### HEARTBEAT_ACK (0x05)
+- JSON: `{ "timestamp": u64 }`
+
+#### SIGNAL_OFFER / SIGNAL_ANSWER / SIGNAL_ICE_CANDIDATE (0x10-0x12)
+- JSON: `{ "target_client_id": "string", "signal_data": "string" }`
+- TEXT: `target_client_id:signal_data`
+
+#### REGISTER (0x20)
+- JSON: `{ "version": "string", "client_id": "string", "auth_token": "string", "capabilities": ["string"], "metadata": { ... } }`
+- BINARY: `[Version Length (1)] [Version] [Client ID Length (1)] [Client ID] [Auth Token Length (1)] [Auth Token] [Capabilities Count (1)] [Capabilities] [Metadata Length (1)] [Metadata JSON]`
+- TEXT: `version:client_id:auth_token`
+
+#### REGISTER_ACK (0x21)
+- JSON: `{ "version": "string", "status": u16, "message": "string", "client_id": "string", "session_id": "string" }`
+- TEXT: `version:status:message:client_id:session_id`
+
+#### UNREGISTER (0x22)
+- JSON: `{ "version": "string", "client_id": "string", "auth_token": "string" }`
+- BINARY: `[Version Length (1)] [Version] [Client ID Length (1)] [Client ID] [Auth Token Length (1)] [Auth Token]`
+- TEXT: `version:client_id:auth_token`
+
+#### UNREGISTER_ACK (0x23)
+- JSON: `{ "version": "string", "status": u16, "message": "string", "client_id": "string" }`
+- TEXT: `version:status:message:client_id`
+
+#### WEBRTC_ROOM_CREATE (0x30)
+- JSON: `{ "version": "string", "client_id": "string", "auth_token": "string", "role": "sender|receiver", "offer_sdp": "string (optional)", "metadata": { ... } }`
+
+#### WEBRTC_ROOM_CREATE_ACK (0x31)
+- JSON: `{ "version": "string", "status": u16, "message": "string", "room_id": "string", "session_id": "string", "app_id": "string", "stun_url": "string", "connection_info": { ... } }`
+
+#### WEBRTC_ROOM_JOIN (0x32)
+- JSON: `{ "version": "string", "client_id": "string", "auth_token": "string", "room_id": "string", "role": "sender|receiver", "offer_sdp": "string (optional)", "metadata": { ... } }`
+
+#### WEBRTC_ROOM_JOIN_ACK (0x33)
+- JSON: `{ "version": "string", "status": u16, "message": "string", "room_id": "string", "session_id": "string", "app_id": "string", "stun_url": "string", "connection_info": { ... } }`
+
+#### WEBRTC_ROOM_LEAVE (0x34)
+- JSON: `{ "version": "string", "client_id": "string", "auth_token": "string", "room_id": "string", "reason": "string (optional)" }`
+
+#### WEBRTC_ROOM_LEAVE_ACK (0x35)
+- JSON: `{ "version": "string", "status": u16, "message": "string", "room_id": "string", "client_id": "string" }`
+
+#### ERROR (0xFF)
+- JSON: `{ "error_code": u8, "error_message": "string" }`
+- TEXT: `error_code:error_message`
+
+### 1.5. Message Handling and Routing
+- All messages are parsed and validated for type, payload type, and length.
+- Registration and authentication are required for most operations.
+- WebRTC room management (create, join, leave) is strictly validated (roles, SDP, etc).
+- Errors are returned as ERROR messages with appropriate codes and messages.
+- Heartbeats are required to keep sessions alive; missing heartbeats result in disconnect.
+- All message routing (signaling, room, etc) is handled by the server and routed to the correct client/session.
+
+### 1.6. Error Handling
+- All errors are returned as ERROR (0xFF) messages with a code and message.
+- Common error codes:
+    - 1: Authentication failed
+    - 400: Bad request (missing/invalid fields)
+    - 401: Unauthorized
+    - 404: Not found (client, room, etc)
+    - 409: Conflict (duplicate registration, etc)
+    - 500: Internal server error
+    - 503: Service unavailable (database, Cloudflare, etc)
+- Error payload: `{ "error_code": u8, "error_message": "string" }`
+
+### 1.7. Session and Registration Flow
+- Client must CONNECT and receive CONNECT_ACK before REGISTER.
+- REGISTER/UNREGISTER must be acknowledged.
+- WebRTC room operations require registration and authentication.
+- Heartbeats must be sent regularly (default: 30s interval, 90s timeout).
+
+### 1.8. WebRTC Room Management
+- Room creation requires role and (for sender) offer_sdp.
+- Room join requires room_id, role, and (for sender) offer_sdp.
+- Room leave requires room_id and client_id.
+- Room and client state is tracked in Firestore.
+- Cloudflare session is created/terminated as needed.
+
+### 1.9. Security and Validation
+- All fields are validated for presence and type.
+- Authentication is required for all state-changing operations.
+- Protocol version is checked and must not exceed server version.
+- All operations are logged and auditable.
+
+---
+This document reflects the actual protocol as implemented in the signal_manager_service codebase. It is sufficient for a developer to implement a compatible client or server from scratch.
 
 
 
-
-
-
-
-
-
-
-# Signaling Protocol Specification
-
-## 1. Protocol Overview
-
-The signaling protocol defines a custom binary WebSocket message format for efficient, reliable communication between clients and backend services.
-
-### 1.1. Message Structure
-```
-[Start Byte (1 byte)] [Message Type (1 byte)] [Message UUID (16 bytes)] [Payload Type (1 byte)] [Payload Length (2 bytes)] [Payload (N bytes)]
-```
-- **Start Byte (1 byte):** Fixed indicator byte (e.g., 0xAA) to identify the start of a message
-- **Message Type (1 byte):** Identifies the type of signaling message
-- **Message UUID (16 bytes):** Fixed-length UUID (128-bit) for unique message identification and correlation
-- **Payload Type (1 byte):** Indicates the format of the payload data
-- **Payload Length (2 bytes):** 16-bit unsigned integer indicating the length of the payload in bytes
-- **Payload (N bytes):** Variable-length data containing the actual message content in the specified format
-
-### 1.2. Message Types
-| Type | Value | Description |
-|------|-------|-------------|
-| CONNECT | 0x01 | Client connection request |
-| CONNECT_ACK | 0x02 | Connection acknowledgment |
-| DISCONNECT | 0x03 | Client disconnection notification |
-| HEARTBEAT | 0x04 | Keep-alive heartbeat |
-| HEARTBEAT_ACK | 0x05 | Heartbeat acknowledgment |
-| SIGNAL_OFFER | 0x10 | WebRTC offer signal |
-| SIGNAL_ANSWER | 0x11 | WebRTC answer signal |
-| SIGNAL_ICE_CANDIDATE | 0x12 | ICE candidate signal |
-| ERROR | 0xFF | Error message |
-
-### 1.3. Payload Types
-| Type | Value | Description |
-|------|-------|-------------|
-| BINARY | 0x01 | Raw binary data |
-| JSON | 0x02 | JSON-encoded data |
-| TEXT | 0x03 | Plain text data |
-| PROTOBUF | 0x04 | Protocol Buffer encoded data |
-| CBOR | 0x05 | CBOR (Concise Binary Object Representation) |
-
-### 1.4. Payload Formats
-Each message type has specific payload requirements. The payload format depends on the Payload Type byte:
-
-**CONNECT (0x01):**
-- **BINARY (0x01):** `[Client ID Length (1 byte)] [Client ID (N bytes)] [Auth Token Length (1 byte)] [Auth Token (N bytes)]`
-- **JSON (0x02):** `{"client_id": "string", "auth_token": "string"}`
-- **TEXT (0x03):** `client_id:auth_token` (colon-separated)
-
-**CONNECT_ACK (0x02):**
-- **BINARY (0x01):** `[Status (1 byte)] [Session ID Length (1 byte)] [Session ID (N bytes)]`
-- **JSON (0x02):** `{"status": "success|error", "session_id": "string"}`
-- **TEXT (0x03):** `status:session_id` (colon-separated)
-
-**SIGNAL_OFFER/ANSWER/ICE_CANDIDATE (0x10-0x12):**
-- **BINARY (0x01):** `[Target Client ID Length (1 byte)] [Target Client ID (N bytes)] [Signal Data Length (2 bytes)] [Signal Data (N bytes)]`
-- **JSON (0x02):** `{"target_client_id": "string", "signal_data": "base64_encoded_string"}`
-- **TEXT (0x03):** `target_client_id:signal_data` (colon-separated)
-
-**ERROR (0xFF):**
-- **BINARY (0x01):** `[Error Code (1 byte)] [Error Message Length (1 byte)] [Error Message (N bytes)]`
-- **JSON (0x02):** `{"error_code": 123, "error_message": "string"}`
-- **TEXT (0x03):** `error_code:error_message` (colon-separated)
-
-### 1.5. Message Handling
-- Parse, validate, and route binary messages according to type and payload.
-- Validate message type, payload type, and payload length.
-- Support serialization/deserialization for all payload formats (binary, JSON, text).
-- Handle errors and protocol violations robustly.
 
 
 

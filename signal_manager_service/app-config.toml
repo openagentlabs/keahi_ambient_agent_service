@@ -80,4 +80,11 @@ credentials_path = "/home/keith/Downloads/keahi-ambient-agent-service-d9c5c0e3f9
 project_id = "your-gcp-project-id"
 region = "europe-west2"
 
-# Firestore configuration moved to the [firestore] section above 
+# Firestore configuration moved to the [firestore] section above
+
+[cloudflare]
+# Cloudflare Realtime configuration for WebRTC
+app_id = "your-cloudflare-app-id"
+app_secret = "your-cloudflare-app-secret"
+base_url = "https://rtc.live.cloudflare.com/v1"
+stun_url = "stun:stun.cloudflare.com:3478" 

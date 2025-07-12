@@ -18,11 +18,13 @@ COPY src ./src
 # Build the actual application
 RUN cargo build --release
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    libssl3 \
+    libc6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
