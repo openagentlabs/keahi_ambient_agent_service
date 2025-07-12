@@ -70,6 +70,42 @@ The Rust application provides several commands:
    npm run tauri build
    ```
 
+## Essential Commands
+
+Run these commands from the `user_agent` directory unless otherwise noted:
+
+### Start the Tauri App (Development Mode)
+```bash
+npm run tauri dev
+```
+Launches the full Tauri app (Rust backend + React frontend) with hot reload.
+
+### Build the Frontend and Tauri App (Production)
+```bash
+npm run build
+```
+Builds the React frontend and prepares the Tauri app for production.
+
+### Install Dependencies
+```bash
+npm install
+```
+Installs all Node.js and Tauri dependencies.
+
+### Preview the Production Build
+```bash
+npm run preview
+```
+Serves the built frontend locally for testing before packaging with Tauri.
+
+### (Optional) Run Only the React Frontend
+```bash
+npm run dev
+```
+Starts the Vite development server for the React frontend only (no Tauri/Rust backend).
+
+---
+
 ## Project Structure
 
 ```

@@ -11,12 +11,14 @@
     "windows": [
       {
         "title": "Keahi Ambient Agent",
-        "width": 1000,
-        "height": 800,
+        "width": 667,
+        "height": 267,
         "resizable": true,
         "fullscreen": false,
         "visible": true,
-        "center": true
+        "center": true,
+        "transparent": true,
+        "decorations": false
       }
     ],
     "security": {
