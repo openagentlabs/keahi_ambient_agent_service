@@ -1,0 +1,334 @@
+# Product Requirements Document: User Agent
+
+## 1. Overview
+
+User agent is responcable for for interacting with the user on there laptop or PC, capturing contect in the form of desktop screen capture, mouse, keyboard, application contect and other context information to help establish the solid understanding of what the user is workig on and providing assistance.
+
+## 2. Goals & Objectives
+
+- Provide a robust, high-performance User Agent application to be installed on a user PC for the capture of the screen, keyboard and mouse including application current active application.
+- Conect with the Signaling Manager Service using websockey and the Signling Manager Servicxe protocal to establish a new WebRTC connection to send video 
+audio and metadata to the the remote ambient AI agent.
+
+## 3. Functional Requirements
+
+### 3.1. Desktop Screen Capture
+- Capture desktop screen content in real-time with configurable frame rates
+- Support multiple monitor configurations
+- Implement efficient screen capture with minimal performance impact
+- Provide options for different capture qualities and compression
+
+### 3.2. Input Device Monitoring
+- Capture mouse movements, clicks, and scroll events
+- Monitor keyboard input and key combinations
+- Track active application and window focus changes
+- Capture application context and metadata
+
+### 3.3. WebSocket Client
+- Implement WebSocket client to connect with Signaling Manager Service
+- Handle connection establishment, reconnection, and error recovery
+- Support the Signaling Manager Service protocol for WebRTC signaling
+- Manage connection state and authentication
+
+### 3.4. WebRTC Integration
+- Establish WebRTC peer connections for video/audio streaming
+- Handle WebRTC signaling through the Signaling Manager Service
+- Stream captured screen content and audio to remote AI agent
+- Manage WebRTC connection lifecycle and quality
+
+### 3.5. Context Collection
+- Gather system information (OS, applications, active windows)
+- Collect user activity patterns and preferences
+- Monitor application usage and workflow context
+- Provide contextual metadata to enhance AI assistance
+
+### 3.6. Modern User Interface
+- Implement a modern overlay window using Tauri, React, and TypeScript
+- Create a glass-morphism design with grays and blacks color scheme
+- Window should be semi-transparent allowing visibility of screen behind
+- Window should sit in front of all other windows (always-on-top)
+- Implement click-through functionality for non-interactive areas
+- Support window dragging and position retention
+- Provide keyboard shortcuts for show/hide functionality
+- Ensure modern, sleek design with glass feel and appearance
+- Responsive design that adapts to different screen sizes
+- Smooth animations and transitions for professional feel
+
+### 3.7. Authentication & Security
+- Implement secure authentication with Signaling Manager Service
+- Encrypt all communications (TLS for WebSocket, SRTP for WebRTC)
+- Secure storage of credentials and configuration
+- Privacy controls for sensitive data capture
+
+### 3.7. Message Handling
+- Support JSON-encoded signaling messages using `serde`
+- Handle message parsing, validation, and routing
+- Support for error handling and reporting
+- Implement retry mechanisms for failed communications
+
+### 3.8. Integration
+- Integrate with Firestore for user preferences and session data
+- Provide hooks for integration with other backend services
+- Support for plugin architecture for extensibility
+- Integrate Tauri backend with React frontend for seamless communication
+
+### 3.9. Observability
+- Log all connection events, errors, and significant actions
+- Provide metrics for capture performance, connection quality, and error rates
+- Implement health monitoring and status reporting
+- Monitor UI performance and user interaction patterns
+
+## 4. Non-Functional Requirements
+
+- **Performance:** Must capture screen content with minimal latency and CPU usage
+- **Reliability:** Must recover gracefully from errors and support automatic restarts
+- **Maintainability:** Code should be modular, well-documented, and follow Rust best practices
+- **Scalability:** Should handle multiple concurrent connections and adapt to system resources
+- **Privacy:** Must respect user privacy settings and provide data control options
+- **Usability:** Should provide intuitive user interface and configuration options
+- **UI/UX:** Modern glass-morphism design with excellent user experience
+- Development language: Rust : Version 1.88.0
+- Modern desktop application with overlay window
+- High performance screen capture and WebRTC streaming
+
+## 5. Technical Stack
+
+- **Language:** Rust (version 1.88.0) for backend services
+- **Frontend:** React with TypeScript for modern UI development
+- **Framework:** Tauri for cross-platform desktop application
+- **UI Framework:** shadcn/ui components with Tailwind CSS
+- **Application Type:** Modern desktop application with overlay window
+- **Key Crates:**
+  - `tokio` (v1.0+, features = ["full"]): Async runtime
+  - `tokio-tungstenite` (v0.23.0): WebSocket support
+  - `config` (v0.14, features = ["toml"]): Configuration management
+
+## 6. Architecture Components
+
+### 6.1. Screen Capture Module
+- Real-time screen capture with configurable quality
+- Multi-monitor support
+- Efficient frame encoding and compression
+
+### 6.2. Input Monitoring Module
+- Mouse and keyboard event capture
+- Application focus tracking
+- Context metadata collection
+
+### 6.3. Communication Module
+- WebSocket client for Signaling Manager Service
+- WebRTC peer connection management
+- Message handling and routing
+
+### 6.4. Configuration Module
+- Application settings management
+- User preferences storage
+- Secure credential handling
+
+### 6.5. UI Module
+- Modern overlay window with glass-morphism design
+- React/TypeScript frontend with shadcn/ui components
+- Tauri integration for native desktop functionality
+- Keyboard shortcuts and window management
+- Configuration dialog and status monitoring
+- Responsive design with smooth animations
+
+## 7. Deliverables
+
+- Source code repository with clear README and setup instructions
+- Desktop application installer for Windows, macOS, and Linux
+- Modern UI components and design system documentation
+- Configuration files and documentation
+- Unit and integration tests for all major components
+- User documentation for installation and configuration
+- API documentation for integration points
+- UI/UX design guidelines and component library
+
+## 8. Acceptance Criteria
+
+- The application can capture screen content with minimal performance impact
+- WebSocket connection to Signaling Manager Service is established and maintained
+- WebRTC peer connection successfully streams video/audio to remote AI agent
+- Input device events are captured and transmitted as metadata
+- Application context and system information are collected and shared
+- All communications are encrypted and authenticated
+- User privacy controls are respected and configurable
+- Application provides modern overlay window with glass-morphism design
+- Window supports click-through, dragging, and position retention
+- Keyboard shortcuts work reliably for show/hide functionality
+- Configuration is persistent and user-friendly
+- Error handling and recovery mechanisms work reliably
+- All code is reviewed, tested, and documented
+
+## 9. Required Crates and Dependencies
+
+### 9.1. Rust Dependencies
+- tokio = { version = "1.0", features = ["full"] }
+- tokio-tungstenite = "0.23.0"
+- config = { version = "0.14", features = ["toml"] }
+- async-trait = "0.1.73"
+- anyhow = "1.0"
+- thiserror = "1.0"
+- tauri = { version = "2.0", features = ["api-all"] }
+- serde = { version = "1.0", features = ["derive"] }
+- serde_json = "1.0"
+- screenshots = "0.8.0"
+- device_query = "1.1.0"
+- webrtc = "0.10.0"
+- firestore = "0.41.1"
+- futures-util = "0.3"
+- log = "0.4"
+- env_logger = "0.10"
+- chrono = { version = "0.4", features = ["serde"] }
+- uuid = { version = "1.0", features = ["v4", "serde"] }
+- base64 = "0.21"
+- url = "2.4"
+- reqwest = { version = "0.11", features = ["json"] }
+- tokio-util = "0.7"
+- bytes = "1.0"
+- image = "0.24"
+- imageproc = "0.23"
+- winapi = { version = "0.3", features = ["winuser", "wingdi"] }
+- x11rb = "0.12"
+- cocoa = "0.25"
+- core-graphics = "0.23"
+- cpal = "0.15"
+- hound = "3.5"
+- tempfile = "3.8"
+- dirs = "5.0"
+- notify = "6.1"
+
+### 9.2. Frontend Dependencies
+- React = "18.0"
+- TypeScript = "5.0"
+- Tailwind CSS = "3.0"
+- shadcn/ui components
+- @tauri-apps/api = "2.0"
+- @tauri-apps/plugin-shell = "2.0"
+- framer-motion = "10.0" (for animations)
+- lucide-react = "0.300" (for icons)
+
+## 10. Application Configuration Requirements
+- Add configuration file for the application called app-config.toml
+- Add the required lib for configuration as outlined in Required Crates, they are serde and config, and add the required code to make it easy to get configuration anywhere in the app
+
+## 11. Database Requirements
+- Use GCP firestore for the database and created and use the repository pattern
+
+## 12. Security & Privacy Requirements
+
+### 12.1. Data Protection
+- Encrypt all captured data in transit and at rest
+- Implement user consent mechanisms for data collection
+- Provide data retention and deletion controls
+- Secure storage of authentication credentials
+
+### 12.2. Privacy Controls
+- Allow users to disable specific capture features
+- Provide granular control over what data is transmitted
+- Implement local-only processing options
+- Respect system privacy settings
+
+### 12.3. Authentication & Authorization
+- Secure authentication with Signaling Manager Service
+- Token-based session management
+- Role-based access controls for different features
+- Secure credential storage and rotation
+
+## 13. Performance Requirements
+
+### 13.1. Resource Usage
+- CPU usage should remain below 10% during normal operation
+- Memory usage should be optimized for long-running sessions
+- Network bandwidth should be configurable and adaptive
+- Disk I/O should be minimized for performance
+
+### 13.2. Latency Requirements
+- Screen capture to transmission latency < 100ms
+- WebRTC connection establishment < 5 seconds
+- Input event capture to transmission < 50ms
+- Application context updates < 1 second
+
+## 14. Deployment & Distribution
+
+### 14.1. Installation
+- Provide installers for Windows (MSI), macOS (DMG), and Linux (AppImage)
+- Silent installation options for enterprise deployment
+- Auto-update mechanism for security patches
+- System integration (startup, overlay window)
+- Tauri bundling for optimized native distribution
+
+### 14.2. Configuration Management
+- Default configuration templates
+- User-specific configuration storage
+- Enterprise configuration management
+- Configuration validation and error handling
+
+## 15. UI/UX Design Requirements
+
+### 15.1. Visual Design
+- Glass-morphism design with grays and blacks color scheme
+- Semi-transparent background allowing screen visibility
+- Modern, sleek appearance with professional feel
+- Consistent design language using shadcn/ui components
+- Smooth animations and transitions for all interactions
+
+### 15.2. Window Behavior
+- Always-on-top window that sits in front of all other applications
+- Click-through functionality for non-interactive areas
+- Draggable window with position retention across sessions
+- Keyboard shortcuts for show/hide (e.g., Ctrl+Shift+A)
+- Responsive design that adapts to different screen sizes
+
+### 15.3. User Experience
+- Intuitive interface with clear visual hierarchy
+- Minimal cognitive load with contextual information
+- Quick access to frequently used features
+- Consistent interaction patterns throughout the application
+- Accessibility features for inclusive design
+
+## 16. Monitoring & Observability
+
+### 16.1. Logging
+- Structured logging with configurable levels
+- Performance metrics collection
+- Error tracking and reporting
+- User activity analytics (privacy-compliant)
+
+### 16.2. Health Monitoring
+- Application health checks
+- Connection status monitoring
+- Resource usage tracking
+- Performance degradation detection
+- UI performance monitoring and optimization
+
+## 17. Testing Strategy
+
+### 17.1. Unit Testing
+- Test all individual components in isolation
+- Mock external dependencies (WebSocket, WebRTC, Firestore)
+- Test error handling and edge cases
+- Achieve >80% code coverage
+- Test React components and Tauri integration
+
+### 17.2. Integration Testing
+- End-to-end testing with Signaling Manager Service
+- WebRTC connection testing
+- Screen capture quality validation
+- Performance benchmarking
+- Tauri-React integration testing
+
+### 17.3. User Acceptance Testing
+- Usability testing with target users
+- Cross-platform compatibility testing
+- Performance testing on various hardware configurations
+- Security and privacy compliance testing
+- UI/UX testing for glass-morphism design and interactions
+
+
+
+
+
+
+
+
