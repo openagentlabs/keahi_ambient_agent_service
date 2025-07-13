@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { useSignalManager } from "@/hooks/useSignalManager";
 import { ConnectionStateType, WebRTCRoomCreatePayload } from "@/lib/signal-manager-client";
+import { invoke } from "@tauri-apps/api/core";
 
 export default function App() {
   const {
@@ -27,6 +28,31 @@ export default function App() {
   const [role, setRole] = React.useState<'sender' | 'receiver'>('sender');
   const [offerSdp, setOfferSdp] = React.useState("");
   const [creatingRoom, setCreatingRoom] = React.useState(false);
+  const [isGeneratingOffer, setIsGeneratingOffer] = React.useState(false);
+  const [webrtcError, setWebrtcError] = React.useState<string | null>(null);
+
+  // WebRTC functions using Tauri commands
+  const generateWebRTCOffer = async () => {
+    setIsGeneratingOffer(true);
+    setWebrtcError(null);
+    try {
+      const result = await invoke('generate_webrtc_offer');
+      const offer = result as { sdp: string; type_: string };
+      setOfferSdp(offer.sdp);
+      return offer;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate WebRTC offer';
+      setWebrtcError(errorMessage);
+      throw error;
+    } finally {
+      setIsGeneratingOffer(false);
+    }
+  };
+
+  const clearWebRTCOffer = () => {
+    setOfferSdp("");
+    setWebrtcError(null);
+  };
 
   const handleConnect = async () => {
     await connect();
@@ -38,25 +64,40 @@ export default function App() {
     setClientId("");
     setAuthToken("");
     setOfferSdp("");
+    clearWebRTCOffer();
   };
 
-  const handleCreateRoom = (e: React.FormEvent) => {
+  const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId || !authToken) return;
     setCreatingRoom(true);
-    const payload: WebRTCRoomCreatePayload = {
-      version: "1.0.0",
-      client_id: clientId,
-      auth_token: authToken,
-      role,
-      offer_sdp: offerSdp || undefined,
-      metadata: {
-        userAgent: navigator.userAgent,
-        timestamp: Date.now(),
-      },
-    };
-    createRoom(payload);
-    setCreatingRoom(false);
+    
+    try {
+      // If role is sender and no offer SDP is provided, generate one
+      let finalOfferSdp = offerSdp;
+      if (role === 'sender' && !offerSdp) {
+        const webrtcOffer = await generateWebRTCOffer();
+        finalOfferSdp = webrtcOffer.sdp;
+        setOfferSdp(webrtcOffer.sdp);
+      }
+      
+      const payload: WebRTCRoomCreatePayload = {
+        version: "1.0.0",
+        client_id: clientId,
+        auth_token: authToken,
+        role,
+        offer_sdp: finalOfferSdp || undefined,
+        metadata: {
+          userAgent: navigator.userAgent,
+          timestamp: Date.now(),
+        },
+      };
+      createRoom(payload);
+    } catch (error) {
+      console.error('Failed to create room:', error);
+    } finally {
+      setCreatingRoom(false);
+    }
   };
 
   // Determine button states
@@ -106,12 +147,13 @@ export default function App() {
           </div>
 
           {/* Debug info */}
-          <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-            <div>Connection: {isConnected ? '✅' : '❌'}</div>
-            <div>Client ID: {clientId ? '✅' : '❌'}</div>
-            <div>Auth Token: {authToken ? '✅' : '❌'}</div>
-            <div>Button enabled: {canCreateRoom ? '✅' : '❌'}</div>
-          </div>
+                      <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+              <div>Connection: {isConnected ? '✅' : '❌'}</div>
+              <div>Client ID: {clientId ? '✅' : '❌'}</div>
+              <div>Auth Token: {authToken ? '✅' : '❌'}</div>
+              <div>WebRTC Offer: {offerSdp ? '✅' : '❌'}</div>
+              <div>Button enabled: {canCreateRoom ? '✅' : '❌'}</div>
+            </div>
 
           {/* Room creation form */}
           <form onSubmit={handleCreateRoom} className="space-y-2 mt-4">
@@ -148,13 +190,42 @@ export default function App() {
             </div>
             <div className="flex flex-col space-y-1">
               <label className="text-xs font-medium text-gray-700">Offer SDP (optional)</label>
+              <div className="flex space-x-2 mb-2">
+                <Button
+                  type="button"
+                  onClick={generateWebRTCOffer}
+                  disabled={isGeneratingOffer}
+                  className="text-xs bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
+                >
+                  {isGeneratingOffer ? 'Generating...' : 'Generate WebRTC Offer'}
+                </Button>
+                {offerSdp && (
+                  <Button
+                    type="button"
+                    onClick={clearWebRTCOffer}
+                    className="text-xs bg-gray-600 hover:bg-gray-700"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
               <textarea
                 className="border rounded px-2 py-1 text-sm"
                 value={offerSdp}
                 onChange={e => setOfferSdp(e.target.value)}
-                placeholder="Enter SDP offer (optional)"
-                rows={2}
+                placeholder="Enter SDP offer or click 'Generate WebRTC Offer' to auto-generate"
+                rows={4}
               />
+              {webrtcError && (
+                <div className="text-xs text-red-600 mt-1">
+                  WebRTC Error: {webrtcError}
+                </div>
+              )}
+              {offerSdp && (
+                <div className="text-xs text-green-600 mt-1">
+                  ✅ WebRTC offer generated successfully
+                </div>
+              )}
             </div>
             <Button
               type="submit"
