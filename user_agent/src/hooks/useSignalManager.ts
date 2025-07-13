@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { SignalManagerClient, ConnectionState, Message, ConnectionStateType } from '@/lib/signal-manager-client';
+import { SignalManagerClient, ConnectionState, Message, ConnectionStateType, WebRTCRoomCreatePayload, WebRTCRoomCreateAckPayload } from '@/lib/signal-manager-client';
 import { loadConfig, Config } from '@/lib/config';
 
 export interface UseSignalManagerReturn {
@@ -11,10 +11,12 @@ export interface UseSignalManagerReturn {
   error: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
+  createRoom: (payload: WebRTCRoomCreatePayload) => void;
   messages: Message[];
   stateType: ConnectionStateType;
   currentRetryInterval: number;
   nextRetryTime: number | null;
+  roomInfo: WebRTCRoomCreateAckPayload | null;
 }
 
 export function useSignalManager(): UseSignalManagerReturn {
@@ -32,6 +34,7 @@ export function useSignalManager(): UseSignalManagerReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
   const clientRef = useRef<SignalManagerClient | null>(null);
+  const [roomInfo, setRoomInfo] = useState<WebRTCRoomCreateAckPayload | null>(null);
 
   // Load configuration
   useEffect(() => {
@@ -56,6 +59,9 @@ export function useSignalManager(): UseSignalManagerReturn {
       },
       (error) => {
         setError(error.message);
+      },
+      (roomCreateAck) => {
+        setRoomInfo(roomCreateAck);
       }
     );
 
@@ -88,14 +94,22 @@ export function useSignalManager(): UseSignalManagerReturn {
     }
   }, []);
 
+  const createRoom = useCallback((payload: WebRTCRoomCreatePayload) => {
+    if (clientRef.current) {
+      clientRef.current.sendRoomCreate(payload);
+    }
+  }, []);
+
   return {
     ...state,
     error,
     connect,
     disconnect,
+    createRoom,
     messages,
     stateType: state.stateType,
     currentRetryInterval: state.currentRetryInterval,
     nextRetryTime: state.nextRetryTime,
+    roomInfo,
   };
 } 

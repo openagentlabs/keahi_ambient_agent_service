@@ -90,8 +90,6 @@ pub struct GcpConfig {
 pub struct FirestoreConfig {
     /// Firestore database name
     pub database_name: String,
-    /// Firestore collection name for registered clients
-    pub collection_name: String,
     /// Firestore project ID (inherited from GCP config)
     pub project_id: String,
     /// Firestore region (inherited from GCP config)
@@ -209,7 +207,6 @@ impl Default for Config {
             },
             firestore: FirestoreConfig {
                 database_name: "signal-manager-service-db".to_string(),
-                collection_name: "registered_clients".to_string(),
                 project_id: "your-gcp-project-id".to_string(),
                 region: "europe-west2".to_string(),
             },

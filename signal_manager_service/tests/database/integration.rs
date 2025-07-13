@@ -15,18 +15,63 @@ fn create_integration_test_config() -> Config {
             port: 8080,
             max_connections: 1000,
             heartbeat_interval: 30,
+            tls_enabled: false,
+            tls_cert_path: "".to_string(),
+            tls_key_path: "".to_string(),
+            read_buffer_size: 8192,
+            write_buffer_size: 8192,
+            max_message_size: 1048576,
         },
         auth: signal_manager_service::config::AuthConfig {
-            clients: vec![
-                signal_manager_service::config::ClientConfig {
-                    client_id: "test_client_1".to_string(),
-                    auth_token: "test_token_1".to_string(),
-                },
+            token_secret: "test-secret".to_string(),
+            token_expiry: 3600,
+            auth_method: "token".to_string(),
+            api_keys: vec![
+                "test_client_1:test_token_1".to_string(),
+                "test_client_2:test_token_2".to_string(),
             ],
+        },
+        logging: signal_manager_service::config::LoggingConfig {
+            level: "info".to_string(),
+            format: "json".to_string(),
+            file_path: None,
+            console_output: true,
+            max_file_size: 10485760,
+            max_files: 5,
+        },
+        metrics: signal_manager_service::config::MetricsConfig {
+            enabled: true,
+            port: 9090,
+            host: "127.0.0.1".to_string(),
+            connection_stats_interval: 60,
+            message_stats_interval: 30,
+        },
+        session: signal_manager_service::config::SessionConfig {
+            session_timeout: 3600,
+            cleanup_interval: 300,
+            max_sessions_per_client: 1,
+        },
+        security: signal_manager_service::config::SecurityConfig {
+            rate_limit_enabled: true,
+            max_messages_per_minute: 100,
+            max_connections_per_ip: 10,
+            allowed_origins: vec!["*".to_string()],
+        },
+        gcp: signal_manager_service::config::GcpConfig {
+            credentials_path: "".to_string(),
+            project_id: "test-project".to_string(),
+            region: "us-central1".to_string(),
         },
         firestore: signal_manager_service::config::FirestoreConfig {
             project_id: "test-project".to_string(),
-            collection_name: "test_clients".to_string(),
+            database_name: "test-db".to_string(),
+            region: "us-central1".to_string(),
+        },
+        cloudflare: signal_manager_service::config::CloudflareConfig {
+            app_id: "test-app-id".to_string(),
+            app_secret: "test-app-secret".to_string(),
+            base_url: "https://api.cloudflare.com/client/v4".to_string(),
+            stun_url: "stun:stun.cloudflare.com:3478".to_string(),
         },
     }
 }

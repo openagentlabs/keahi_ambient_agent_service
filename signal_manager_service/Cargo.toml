@@ -28,3 +28,4 @@ google-cloud-default = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.11", features = ["json"] }
 mockall = "0.12"
+rustls = "0.23"

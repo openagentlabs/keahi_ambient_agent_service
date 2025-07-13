@@ -7,6 +7,7 @@ alwaysApply: false
 
 The Signaling Management Service is a core backend component of the remote screen-sharing solution. Its primary responsibility is to provide a high-performance, reliable, and secure WebSocket server for managing signaling between agents and backend services. This service is implemented as a Rust console application and is designed for scalability and maintainability.
 
+
 ## 2. Goals & Objectives
 
 - Provide a robust, high-performance WebSocket server for signaling.
@@ -96,6 +97,12 @@ The Signaling Management Service is a core backend component of the remote scree
 
 ## 10. Database Requirements
 - Use GCP firestore for the database and created and use the repository pattern;
+
+
+## 11. Rules
+
+- In the root of the signal manager service is the build script build.sh, use this to build the application
+
 
 
 

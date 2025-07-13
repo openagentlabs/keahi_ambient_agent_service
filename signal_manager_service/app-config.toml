@@ -24,7 +24,6 @@ project_id = "your-project-id"
 credentials_path = ""
 collection_prefix = "signal_sessions"
 database_name = "signal-manager-service-db"
-collection_name = "registered_clients"
 region = "europe-west2"
 
 [auth]

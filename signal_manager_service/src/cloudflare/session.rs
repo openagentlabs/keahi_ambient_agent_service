@@ -23,7 +23,6 @@ impl CloudflareSession {
     }
 
     /// Create a new session manager with a custom client (for testing)
-    #[cfg(test)]
     pub fn new_with_client(config: Arc<Config>, client: Box<dyn CloudflareClientTrait>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         Ok(Self {
             client,

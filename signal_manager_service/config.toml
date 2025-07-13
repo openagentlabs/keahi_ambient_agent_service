@@ -11,12 +11,10 @@ write_buffer_size = 8192
 max_message_size = 1048576
 
 [firestore]
-project_id = "your-project-id"
-credentials_path = ""
+project_id = "keahi-ambient-agent-service"
 database_name = "signal-manager-service-db"
 auth_method = "service_account"
-collection_name = "clients"
-region = "us-central1"
+region = "europe-west2"
 
 [auth]
 token_secret = "your-secret-key-change-in-production"
@@ -50,12 +48,12 @@ max_connections_per_ip = 10
 allowed_origins = ["*"]
 
 [gcp]
-credentials_path = ""
-project_id = "your-project-id"
-region = "us-central1"
+credentials_path = "/home/keith/Downloads/keahi-ambient-agent-service-d9c5c0e3f93a.json"
+project_id = "keahi-ambient-agent-service"
+region = "europe-west2"
 
 [cloudflare]
-app_id = "your-cloudflare-app-id"
-app_secret = "your-cloudflare-app-secret"
-base_url = "https://api.cloudflare.com/client/v4"
+app_id = "9921056730bbfc032748b0bf2db894c4"
+app_secret = "ebac2efe919448c33dfe48c43d808fb4769d687b737b70f0a7c7569393d3c898"
+base_url = "https://rtc.live.cloudflare.com/v1"
 stun_url = "stun:stun.cloudflare.com:3478" 
