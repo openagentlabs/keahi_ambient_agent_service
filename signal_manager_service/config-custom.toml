@@ -1,6 +1,6 @@
 [server]
 host = "127.0.0.1"
-port = 8080
+port = 8081
 max_connections = 1000
 heartbeat_interval = 30
 tls_enabled = false
@@ -33,7 +33,7 @@ max_files = 5
 
 [metrics]
 enabled = true
-port = 9090
+port = 9091
 host = "127.0.0.1"
 connection_stats_interval = 60
 message_stats_interval = 30

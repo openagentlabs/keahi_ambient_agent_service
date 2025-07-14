@@ -40,7 +40,7 @@ api_keys = [
 
 [logging]
 # Logging configuration
-level = "info"
+level = "debug"
 format = "json"
 file_path = ""  # Set to path for file logging
 console_output = true

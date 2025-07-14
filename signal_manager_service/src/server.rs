@@ -9,7 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{RwLock, Mutex};
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, debug};
 use native_tls::{TlsAcceptor, Identity};
 use tokio_native_tls::TlsAcceptor as TokioTlsAcceptor;
 use std::fs::File;
@@ -136,7 +136,7 @@ impl WebSocketServer {
         loop {
             match listener.accept().await {
                 Ok((stream, addr)) => {
-                    info!("New connection from {}", addr);
+                    info!("[CONNECTION] New TCP connection from {}", addr);
                     
                     let session_manager = self.session_manager.clone();
                     let connections = self.connections.clone();
@@ -145,7 +145,7 @@ impl WebSocketServer {
                     let server = self.clone();
                     tokio::spawn(async move {
                         if let Err(e) = server.handle_connection(stream, session_manager, connections, tls_acceptor).await {
-                            error!("Connection error: {}", e);
+                            error!("[CONNECTION] Connection error from {}: {}", addr, e);
                         }
                     });
                 }
@@ -163,11 +163,20 @@ impl WebSocketServer {
         connections: Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Message>>>>,
         tls_acceptor: Option<TokioTlsAcceptor>,
     ) -> Result<(), crate::Error> {
-        if let Some(acceptor) = tls_acceptor {
+        info!("[CONNECTION] Processing connection - TLS enabled: {}", tls_acceptor.is_some());
+        
+        let result = if let Some(acceptor) = tls_acceptor {
             self.handle_tls_connection(stream, session_manager, connections, acceptor).await
         } else {
             self.handle_plain_connection(stream, session_manager, connections).await
+        };
+        
+        match &result {
+            Ok(_) => info!("[CONNECTION] Connection processed successfully"),
+            Err(e) => error!("[CONNECTION] Connection processing failed: {}", e),
         }
+        
+        result
     }
 
     async fn handle_tls_connection(
@@ -177,9 +186,22 @@ impl WebSocketServer {
         connections: Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Message>>>>,
         acceptor: TokioTlsAcceptor,
     ) -> Result<(), crate::Error> {
+        info!("[CONNECTION] Attempting TLS handshake");
+        
         let tls_stream = acceptor.accept(stream).await
-            .map_err(|e| crate::Error::Connection(format!("TLS handshake failed: {e}")))?;
-        let ws_stream = accept_async(tls_stream).await?;
+            .map_err(|e| {
+                error!("[CONNECTION] TLS handshake failed: {}", e);
+                crate::Error::Connection(format!("TLS handshake failed: {e}"))
+            })?;
+        
+        info!("[CONNECTION] TLS handshake successful, upgrading to WebSocket");
+        let ws_stream = accept_async(tls_stream).await
+            .map_err(|e| {
+                error!("[CONNECTION] WebSocket upgrade failed: {}", e);
+                crate::Error::Connection(format!("WebSocket upgrade failed: {e}"))
+            })?;
+        
+        info!("[CONNECTION] WebSocket connection established");
         self.handle_ws_stream(ws_stream, session_manager, connections).await
     }
 
@@ -189,7 +211,15 @@ impl WebSocketServer {
         session_manager: Arc<SessionManager>,
         connections: Arc<RwLock<HashMap<String, tokio::sync::mpsc::Sender<Message>>>>,
     ) -> Result<(), crate::Error> {
-        let ws_stream = accept_async(stream).await?;
+        info!("[CONNECTION] Upgrading plain TCP connection to WebSocket");
+        
+        let ws_stream = accept_async(stream).await
+            .map_err(|e| {
+                error!("[CONNECTION] WebSocket upgrade failed: {}", e);
+                crate::Error::Connection(format!("WebSocket upgrade failed: {e}"))
+            })?;
+        
+        info!("[CONNECTION] WebSocket connection established");
         self.handle_ws_stream(ws_stream, session_manager, connections).await
     }
 
@@ -202,6 +232,7 @@ impl WebSocketServer {
     where
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
+        info!("[WEBSOCKET] Starting WebSocket message processing");
 
         let (ws_sender, mut ws_receiver) = ws_stream.split();
         let ws_sender = Arc::new(Mutex::new(ws_sender));
@@ -217,11 +248,17 @@ impl WebSocketServer {
         let webrtc_room_join_handler = self.webrtc_room_join_handler.clone();
         let webrtc_room_leave_handler = self.webrtc_room_leave_handler.clone();
         let incoming_task = tokio::spawn(async move {
+            info!("[WEBSOCKET] Starting incoming message processing task");
             while let Some(msg) = ws_receiver.next().await {
                 match msg {
                     Ok(WsMessage::Binary(data)) => {
+                        info!("[WEBSOCKET] Received binary message ({} bytes)", data.len());
                         match Message::from_binary(&data) {
                             Ok(message) => {
+                                // Debug logging for incoming message
+                                debug!("[WEBSOCKET_IN] Received message: type={:?}, uuid={}, client_id={:?}", 
+                                    message.message_type, message.uuid, client_id_in.lock().await.as_deref());
+                                
                                 let context = MessageHandlerContext {
                                     session_manager: &session_manager_clone,
                                     client_id: &client_id_in,
@@ -233,58 +270,101 @@ impl WebSocketServer {
                                     webrtc_room_leave_handler: &webrtc_room_leave_handler,
                                 };
                                 if let Err(e) = Self::handle_message(&message, context).await {
-                                    error!("Error handling message: {}", e);
+                                    error!("[WEBSOCKET] Error handling message: {}", e);
                                     break;
                                 }
                             }
                             Err(e) => {
-                                let preview = data.iter().take(16).map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
-                                warn!("Dropped invalid frame: {} ({} bytes, preview: [{}])", e, data.len(), preview);
+                                let preview = data.iter().take(32).map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
+                                error!("[WEBSOCKET][PARSE_ERROR] Dropped invalid frame: {} ({} bytes, preview: [{}])", e, data.len(), preview);
+                                // Optionally, send an error message back to the client
+                                let error_message = Message::new(
+                                    crate::message::MessageType::Error,
+                                    crate::message::Payload::Error(crate::message::ErrorPayload {
+                                        error_code: 2,
+                                        error_message: format!("Malformed message: {}", e),
+                                    })
+                                );
+                                if let Ok(binary) = error_message.to_binary() {
+                                    let _ = ws_sender_in.lock().await.send(WsMessage::Binary(binary)).await;
+                                }
                                 // Continue listening for more frames
                                 continue;
                             }
                         }
                     }
+                    Ok(WsMessage::Text(text)) => {
+                        info!("[WEBSOCKET] Received text message: {}", text);
+                        warn!("[WEBSOCKET] Text messages not supported, dropping message");
+                        let error_message = Message::new(
+                            crate::message::MessageType::Error,
+                            crate::message::Payload::Error(crate::message::ErrorPayload {
+                                error_code: 3,
+                                error_message: "Text messages are not supported. Use binary format.".to_string(),
+                            })
+                        );
+                        if let Ok(binary) = error_message.to_binary() {
+                            let _ = ws_sender_in.lock().await.send(WsMessage::Binary(binary)).await;
+                        }
+                    }
                     Ok(WsMessage::Close(_)) => {
-                        info!("Client disconnected");
+                        info!("[WEBSOCKET] Client disconnected");
                         break;
                     }
                     Ok(WsMessage::Ping(data)) => {
+                        debug!("[WEBSOCKET_IN] Received ping");
                         if let Err(e) = ws_sender_in.lock().await.send(frame_handlers::ping::handle_ping(data).await).await {
-                            error!("Failed to send pong: {}", e);
+                            error!("[WEBSOCKET] Failed to send pong: {}", e);
                             break;
                         }
                     }
                     Err(e) => {
-                        error!("WebSocket error: {}", e);
+                        error!("[WEBSOCKET] WebSocket error: {}", e);
                         break;
                     }
                     _ => {
-                        warn!("Unsupported message type");
+                        warn!("[WEBSOCKET] Unsupported message type");
                     }
                 }
             }
+            info!("[WEBSOCKET] Incoming message processing task ended");
         });
         let ws_sender_out = ws_sender.clone();
+        let client_id_out = client_id.clone();
         let outgoing_task = tokio::spawn(async move {
+            info!("[WEBSOCKET] Starting outgoing message processing task");
             while let Some(message) = rx.recv().await {
+                // Debug logging for outgoing message
+                debug!("[WEBSOCKET_OUT] Sending message: type={:?}, uuid={}, client_id={:?}", 
+                    message.message_type, message.uuid, client_id_out.lock().await.as_deref());
+                
                 if let Ok(binary) = message.to_binary() {
                     if let Err(e) = ws_sender_out.lock().await.send(WsMessage::Binary(binary)).await {
-                        error!("Failed to send message: {}", e);
+                        error!("[WEBSOCKET] Failed to send message: {}", e);
                         break;
                     }
                 }
             }
+            info!("[WEBSOCKET] Outgoing message processing task ended");
         });
         tokio::select! {
-            _ = incoming_task => {},
-            _ = outgoing_task => {},
+            _ = incoming_task => {
+                info!("[WEBSOCKET] Incoming task completed");
+            },
+            _ = outgoing_task => {
+                info!("[WEBSOCKET] Outgoing task completed");
+            },
         }
         if let Some(id) = client_id.lock().await.as_ref() {
+            info!("[CONNECTION] Client {} disconnecting", id);
             session_manager.handle_disconnect(id).await?;
             let mut connections = connections.write().await;
             connections.remove(id);
+            info!("[CONNECTION] Client {} removed from connections map", id);
+        } else {
+            info!("[CONNECTION] Client disconnected without being authenticated");
         }
+        info!("[WEBSOCKET] WebSocket stream processing completed");
         Ok(())
     }
 
@@ -292,20 +372,30 @@ impl WebSocketServer {
         message: &Message,
         context: MessageHandlerContext<'_>,
     ) -> Result<(), crate::Error> {
+        // Debug logging for message handling
+        debug!("[MESSAGE_HANDLER] Processing message: type={:?}, uuid={}", 
+            message.message_type, message.uuid);
+        
         match &message.payload {
             Payload::Connect(payload) => {
+                debug!("[MESSAGE_HANDLER] Handling Connect request for client: {}", payload.client_id);
                 let response = context.session_manager.handle_connect(payload.client_id.clone(), payload.auth_token.clone()).await?;
                 if let Payload::ConnectAck(ack) = &response.payload {
                     if ack.status == "success" {
                         *context.client_id.lock().await = Some(payload.client_id.clone());
                         let mut connections = context.connections.write().await;
                         connections.insert(payload.client_id.clone(), context.tx.clone());
-                        info!("Client {} connected successfully", payload.client_id);
+                        info!("[CONNECTION] Client {} added to connections map", payload.client_id);
+                        info!("[CONNECTION] Client {} connected successfully", payload.client_id);
+                    } else {
+                        warn!("[CONNECTION] Client {} connection failed: {}", payload.client_id, ack.status);
                     }
                 }
+                debug!("[MESSAGE_HANDLER] Sending ConnectAck response for client: {}", payload.client_id);
                 context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
             }
             Payload::Disconnect(_payload) => {
+                debug!("[MESSAGE_HANDLER] Handling Disconnect request");
                 if let Some(id) = context.client_id.lock().await.as_ref() {
                     context.session_manager.handle_disconnect(id).await?;
                     let mut connections = context.connections.write().await;
@@ -313,14 +403,17 @@ impl WebSocketServer {
                 }
             }
             Payload::Heartbeat(_) => {
+                debug!("[MESSAGE_HANDLER] Handling Heartbeat request");
                 if let Some(id) = context.client_id.lock().await.as_ref() {
                     let response = context.session_manager.handle_heartbeat(id.clone()).await?;
                     context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
                 }
             }
             Payload::Register(_) => {
+                debug!("[MESSAGE_HANDLER] Handling Register request");
                 match context.register_handler.handle_register(message.clone()).await {
                     Ok(response) => {
+                        debug!("[MESSAGE_HANDLER] Sending RegisterAck response");
                         context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
                     }
                     Err(e) => {
@@ -337,8 +430,10 @@ impl WebSocketServer {
                 }
             }
             Payload::Unregister(_) => {
+                debug!("[MESSAGE_HANDLER] Handling Unregister request");
                 match context.register_handler.handle_unregister(message.clone()).await {
                     Ok(response) => {
+                        debug!("[MESSAGE_HANDLER] Sending UnregisterAck response");
                         context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
                     }
                     Err(e) => {
@@ -355,13 +450,16 @@ impl WebSocketServer {
                 }
             }
             Payload::SignalOffer(_) | Payload::SignalAnswer(_) | Payload::SignalIceCandidate(_) => {
+                debug!("[MESSAGE_HANDLER] Handling Signal message: type={:?}", message.message_type);
                 if let Some(id) = context.client_id.lock().await.as_ref() {
                     context.session_manager.route_message(id.clone(), message.clone()).await?;
                 }
             }
             Payload::WebRTCRoomCreate(_) => {
+                debug!("[MESSAGE_HANDLER] Handling WebRTCRoomCreate request");
                 match context.webrtc_room_create_handler.handle_room_create(message.clone()).await {
                     Ok(response) => {
+                        debug!("[MESSAGE_HANDLER] Sending WebRTCRoomCreateAck response");
                         context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
                     }
                     Err(e) => {
@@ -378,8 +476,10 @@ impl WebSocketServer {
                 }
             }
             Payload::WebRTCRoomJoin(_) => {
+                debug!("[MESSAGE_HANDLER] Handling WebRTCRoomJoin request");
                 match context.webrtc_room_join_handler.handle_room_join(message.clone()).await {
                     Ok(response) => {
+                        debug!("[MESSAGE_HANDLER] Sending WebRTCRoomJoinAck response");
                         context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
                     }
                     Err(e) => {
@@ -396,8 +496,10 @@ impl WebSocketServer {
                 }
             }
             Payload::WebRTCRoomLeave(_) => {
+                debug!("[MESSAGE_HANDLER] Handling WebRTCRoomLeave request");
                 match context.webrtc_room_leave_handler.handle_room_leave(message.clone()).await {
                     Ok(response) => {
+                        debug!("[MESSAGE_HANDLER] Sending WebRTCRoomLeaveAck response");
                         context.tx.send(response).await.map_err(|e| crate::Error::Connection(e.to_string()))?;
                     }
                     Err(e) => {

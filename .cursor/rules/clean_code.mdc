@@ -4,6 +4,14 @@ alwaysApply: false
 ---
 # Clean Code Guidelines
 
+## Code generation rules to alwasy follw
+- Always create the most simple but preformant code possible, focus in readability for the user, while keeping a balance for preformance. 
+- Never create nested complex code thet is dificult to debug.
+- Where making update to existing code always first think about the existing fode structure, and figure if it would be better to restructure code to make it simple to debug
+- Source code must alwasy be constructed into modules, never create sprawling code, the application mus be a set of clean seperate modules, with well defined interfaces connectig each module, modules must be in there own sub folder of the root.
+- Always add debugging, but need to be smart, never add debugging to the application code for the sake of addding it, but be strategic about it.
+- Never use nexted loops or next complexity thet is dificulet to understand.
+
 ## Constants Over Magic Numbers
 - Replace hard-coded values with named constants
 - Use descriptive constant names that explain the value's purpose

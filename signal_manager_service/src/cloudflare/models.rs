@@ -123,7 +123,9 @@ pub enum ClientStatus {
 /// Cloudflare API response for session creation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloudflareSessionResponse {
+    #[serde(rename = "sessionId")]
     pub session_id: String,
+    #[serde(rename = "sessionDescription")]
     pub session_description: SessionDescription,
 }
 

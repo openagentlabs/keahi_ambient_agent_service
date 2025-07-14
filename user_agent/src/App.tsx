@@ -1,49 +1,214 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
-import { useSignalManager } from "@/hooks/useSignalManager";
-import { ConnectionStateType, WebRTCRoomCreatePayload } from "@/lib/signal-manager-client";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+interface ConnectionState {
+  state_type: 'disconnected_not_to_connect' | 'trying_to_connect' | 'connected' | 'was_connected_trying_to_reconnect' | 'disconnecting_disconnect_requested';
+  is_connected: boolean;
+  is_connecting: boolean;
+  is_reconnecting: boolean;
+  last_heartbeat: number;
+  reconnect_attempts: number;
+  current_retry_interval: number;
+  next_retry_time: number | null;
+}
+
+interface WebRTCOffer {
+  sdp: string;
+  type_: string;
+}
+
+interface RoomCreatedEvent {
+  roomId: string | null;
+  sessionId: string | null;
+}
 
 export default function App() {
-  const {
-    isConnected,
-    isConnecting,
-    isReconnecting,
-    lastHeartbeat,
-    reconnectAttempts,
-    error,
-    connect,
-    disconnect,
-    createRoom,
-    messages,
-    stateType,
-    currentRetryInterval,
-    nextRetryTime,
-    roomInfo,
-  } = useSignalManager();
+  const [state, setState] = React.useState<ConnectionState>({
+    state_type: 'disconnected_not_to_connect',
+    is_connected: false,
+    is_connecting: false,
+    is_reconnecting: false,
+    last_heartbeat: 0,
+    reconnect_attempts: 0,
+    current_retry_interval: 0,
+    next_retry_time: null,
+  });
+  const [error, setError] = React.useState<string | null>(null);
+  const [webrtcError, setWebrtcError] = React.useState<string | null>(null);
+  const [isGeneratingOffer, setIsGeneratingOffer] = React.useState(false);
+  const [isConnecting, setIsConnecting] = React.useState(false);
+  const [isDisconnecting, setIsDisconnecting] = React.useState(false);
+  const [creatingRoom, setCreatingRoom] = React.useState(false);
 
+  // UI state
   const [clientId, setClientId] = React.useState("");
   const [authToken, setAuthToken] = React.useState("");
   const [role, setRole] = React.useState<'sender' | 'receiver'>('sender');
   const [offerSdp, setOfferSdp] = React.useState("");
-  const [creatingRoom, setCreatingRoom] = React.useState(false);
-  const [isGeneratingOffer, setIsGeneratingOffer] = React.useState(false);
-  const [webrtcError, setWebrtcError] = React.useState<string | null>(null);
+  const [createdRoomId, setCreatedRoomId] = React.useState<string | null>(null);
+  const [createdSessionId, setCreatedSessionId] = React.useState<string | null>(null);
+  const [roomId, setRoomId] = React.useState<string | null>(null);
 
-  // WebRTC functions using Tauri commands
+  // Set up event listeners for real-time updates
+  React.useEffect(() => {
+    const unlistenFns: (() => void)[] = [];
+
+    const setupEventListeners = async () => {
+      try {
+        // Listen for state changes
+        const unlistenStateChanged = await listen<ConnectionState>('signal-manager:state-changed', (event) => {
+          console.log('State changed event received:', event.payload);
+          setState(event.payload);
+          setError(null); // Clear any previous errors when state changes
+        });
+        unlistenFns.push(unlistenStateChanged);
+
+        // Listen for connection events
+        const unlistenConnecting = await listen('signal-manager:connecting', () => {
+          console.log('Connecting event received');
+          setIsConnecting(true);
+          setError(null);
+        });
+        unlistenFns.push(unlistenConnecting);
+
+        const unlistenConnected = await listen('signal-manager:connected', () => {
+          console.log('Connected event received');
+          setIsConnecting(false);
+          setError(null);
+        });
+        unlistenFns.push(unlistenConnected);
+
+        const unlistenDisconnecting = await listen('signal-manager:disconnecting', () => {
+          console.log('Disconnecting event received');
+          setIsDisconnecting(true);
+        });
+        unlistenFns.push(unlistenDisconnecting);
+
+        const unlistenDisconnected = await listen('signal-manager:disconnected', () => {
+          console.log('Disconnected event received');
+          setIsDisconnecting(false);
+        });
+        unlistenFns.push(unlistenDisconnected);
+
+        const unlistenReconnecting = await listen<number>('signal-manager:reconnecting', (event) => {
+          console.log('Reconnecting event received, attempt:', event.payload);
+        });
+        unlistenFns.push(unlistenReconnecting);
+
+        // Listen for error events
+        const unlistenConnectionError = await listen<string>('signal-manager:connection-error', (event) => {
+          console.log('Connection error event received:', event.payload);
+          setError(`Connection failed: ${event.payload}`);
+          setIsConnecting(false);
+        });
+        unlistenFns.push(unlistenConnectionError);
+
+        const unlistenDisconnectError = await listen<string>('signal-manager:disconnect-error', (event) => {
+          console.log('Disconnect error event received:', event.payload);
+          setError(`Disconnect failed: ${event.payload}`);
+          setIsDisconnecting(false);
+        });
+        unlistenFns.push(unlistenDisconnectError);
+
+        const unlistenGeneralError = await listen<string>('signal-manager:error', (event) => {
+          console.log('General error event received:', event.payload);
+          setError(event.payload);
+        });
+        unlistenFns.push(unlistenGeneralError);
+
+        // Listen for room events
+        const unlistenRoomCreating = await listen('room:creating', () => {
+          console.log('Room creating event received');
+          setCreatingRoom(true);
+          setError(null);
+        });
+        unlistenFns.push(unlistenRoomCreating);
+
+        const unlistenRoomCreated = await listen<RoomCreatedEvent>('room:created', (event) => {
+          console.log('Room created event received:', event.payload);
+          setCreatingRoom(false);
+          setCreatedRoomId(event.payload.roomId);
+          setCreatedSessionId(event.payload.sessionId);
+          setRoomId(event.payload.roomId);
+          setError(null);
+        });
+        unlistenFns.push(unlistenRoomCreated);
+
+        const unlistenRoomCreationError = await listen<string>('room:creation-error', (event) => {
+          console.log('Room creation error event received:', event.payload);
+          setCreatingRoom(false);
+          setError(`Room creation failed: ${event.payload}`);
+        });
+        unlistenFns.push(unlistenRoomCreationError);
+
+      } catch (err) {
+        console.error('Failed to set up event listeners:', err);
+        setError(`Failed to set up event listeners: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    };
+
+    setupEventListeners();
+
+    // Cleanup function
+    return () => {
+      unlistenFns.forEach(unlisten => unlisten());
+    };
+  }, []);
+
+  // UI Event Handlers - Pure UI logic only
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setError(null);
+    
+    try {
+      await invoke('init_signal_manager', {
+        url: "127.0.0.1",
+        port: 8080,
+        clientId,
+        authToken,
+      });
+      await invoke('connect_signal_manager');
+    } catch (err) {
+      setError(`Connection failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setIsDisconnecting(true);
+    setError(null);
+    
+    try {
+      await invoke('disconnect_signal_manager');
+      await invoke('cleanup_webrtc_connection');
+      // Clear form fields when disconnecting
+      setClientId("");
+      setAuthToken("");
+      setOfferSdp("");
+      setCreatedRoomId(null);
+      setCreatedSessionId(null);
+      setRoomId(null);
+    } catch (err) {
+      setError(`Disconnect failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setIsDisconnecting(false);
+    }
+  };
+
   const generateWebRTCOffer = async () => {
     setIsGeneratingOffer(true);
     setWebrtcError(null);
+    
     try {
-      const result = await invoke('generate_webrtc_offer');
-      const offer = result as { sdp: string; type_: string };
+      const offer = await invoke<WebRTCOffer>('generate_webrtc_offer');
       setOfferSdp(offer.sdp);
       return offer;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate WebRTC offer';
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate WebRTC offer';
       setWebrtcError(errorMessage);
-      throw error;
+      return null;
     } finally {
       setIsGeneratingOffer(false);
     }
@@ -51,81 +216,74 @@ export default function App() {
 
   const clearWebRTCOffer = () => {
     setOfferSdp("");
-    setWebrtcError(null);
-  };
-
-  const handleConnect = async () => {
-    await connect();
-  };
-
-  const handleDisconnect = () => {
-    disconnect();
-    // Clear form fields when disconnecting
-    setClientId("");
-    setAuthToken("");
-    setOfferSdp("");
-    clearWebRTCOffer();
   };
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientId || !authToken) return;
     setCreatingRoom(true);
-    
+    setCreatedRoomId(null);
+    setCreatedSessionId(null);
+    setRoomId(null);
     try {
       // If role is sender and no offer SDP is provided, generate one
       let finalOfferSdp = offerSdp;
       if (role === 'sender' && !offerSdp) {
         const webrtcOffer = await generateWebRTCOffer();
-        finalOfferSdp = webrtcOffer.sdp;
-        setOfferSdp(webrtcOffer.sdp);
+        if (webrtcOffer) {
+          finalOfferSdp = webrtcOffer.sdp;
+          setOfferSdp(webrtcOffer.sdp);
+        } else {
+          console.error('Failed to generate WebRTC offer');
+          return;
+        }
       }
-      
-      const payload: WebRTCRoomCreatePayload = {
+      const [roomIdResult, sessionId] = await invoke<[string | null, string | null]>('send_room_create', {
         version: "1.0.0",
-        client_id: clientId,
-        auth_token: authToken,
-        role,
-        offer_sdp: finalOfferSdp || undefined,
+        clientId: clientId,
+        authToken: authToken,
+        role: role,
+        offerSdp: finalOfferSdp || undefined,
         metadata: {
           userAgent: navigator.userAgent,
           timestamp: Date.now(),
         },
-      };
-      createRoom(payload);
+      });
+      setCreatedRoomId(roomIdResult || null);
+      setCreatedSessionId(sessionId || null);
+      setRoomId(roomIdResult || null);
     } catch (error) {
       console.error('Failed to create room:', error);
-    } finally {
       setCreatingRoom(false);
     }
   };
 
-  // Determine button states
-  const canConnect = !isConnected && !isConnecting && !isReconnecting;
-  const canDisconnect = isConnected && !isConnecting && !isReconnecting;
-  const canCreateRoom = isConnected && clientId && authToken;
+  // UI state computations
+  const canConnect = !state.is_connected && !state.is_connecting && !state.is_reconnecting && !isConnecting;
+  const canDisconnect = state.is_connected && !state.is_connecting && !state.is_reconnecting && !isDisconnecting;
+  const canCreateRoom = state.is_connected && clientId && authToken;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-blue-900/60">
       <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
         {/* Status message */}
         <div className="text-sm text-gray-600 mb-4 text-center">
-          {isConnected && '✅ Connected to server'}
-          {isConnecting && '🔄 Connecting to server...'}
-          {isReconnecting && `🔄 Reconnecting to server... (Attempt ${reconnectAttempts})`}
-          {!isConnected && !isConnecting && !isReconnecting && '❌ Disconnected from server'}
+          {state.is_connected && '✅ Connected to server'}
+          {state.is_connecting && '🔄 Connecting to server...'}
+          {state.is_reconnecting && `🔄 Reconnecting to server... (Attempt ${state.reconnect_attempts})`}
+          {!state.is_connected && !state.is_connecting && !state.is_reconnecting && '❌ Disconnected from server'}
         </div>
         <div className="space-y-4">
           <ConnectionStatus 
             state={{
-              stateType,
-              isConnected,
-              isConnecting,
-              isReconnecting,
-              lastHeartbeat,
-              reconnectAttempts,
-              currentRetryInterval,
-              nextRetryTime,
+              stateType: state.state_type,
+              isConnected: state.is_connected,
+              isConnecting: state.is_connecting,
+              isReconnecting: state.is_reconnecting,
+              lastHeartbeat: state.last_heartbeat,
+              reconnectAttempts: state.reconnect_attempts,
+              currentRetryInterval: state.current_retry_interval,
+              nextRetryTime: state.next_retry_time,
             }}
             error={error}
           />
@@ -135,25 +293,32 @@ export default function App() {
               disabled={!canConnect}
               className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
             >
-              {isConnecting ? 'Connecting...' : isReconnecting ? 'Reconnecting...' : 'Connect'}
+              {isConnecting ? 'Connecting...' : state.is_connecting ? 'Connecting...' : state.is_reconnecting ? 'Reconnecting...' : 'Connect'}
             </Button>
             <Button
               onClick={handleDisconnect}
               disabled={!canDisconnect}
               className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400"
             >
-              Disconnect
+              {isDisconnecting ? 'Disconnecting...' : 'Disconnect'}
             </Button>
           </div>
 
           {/* Debug info */}
-                      <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-              <div>Connection: {isConnected ? '✅' : '❌'}</div>
-              <div>Client ID: {clientId ? '✅' : '❌'}</div>
-              <div>Auth Token: {authToken ? '✅' : '❌'}</div>
-              <div>WebRTC Offer: {offerSdp ? '✅' : '❌'}</div>
-              <div>Button enabled: {canCreateRoom ? '✅' : '❌'}</div>
+          <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+            <div>Connection: {state.is_connected ? '✅' : '❌'}</div>
+            <div>Client ID: {clientId ? '✅' : '❌'}</div>
+            <div>Auth Token: {authToken ? '✅' : '❌'}</div>
+            <div>WebRTC Offer: {offerSdp ? '✅' : '❌'}</div>
+            <div>Button enabled: {canCreateRoom ? '✅' : '❌'}</div>
+          </div>
+
+          {/* Room ID display */}
+          {roomId && (
+            <div className="text-sm text-blue-800 bg-blue-100 rounded p-2 mb-2">
+              <b>Current Room ID:</b> {roomId}
             </div>
+          )}
 
           {/* Room creation form */}
           <form onSubmit={handleCreateRoom} className="space-y-2 mt-4">
@@ -234,41 +399,14 @@ export default function App() {
             >
               {creatingRoom ? 'Creating Room...' : 'Create WebRTC Room'}
             </Button>
-          </form>
-
-          {/* Display room info after creation */}
-          {roomInfo && roomInfo.status === 200 && (
-            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-              <div className="font-semibold text-green-700 mb-1">Room Created!</div>
-              <div className="text-xs text-gray-700">Room ID: <span className="font-mono">{roomInfo.room_id}</span></div>
-              <div className="text-xs text-gray-700">Session ID: <span className="font-mono">{roomInfo.session_id}</span></div>
-              <div className="text-xs text-gray-700">App ID: <span className="font-mono">{roomInfo.app_id}</span></div>
-              <div className="text-xs text-gray-700">STUN URL: <span className="font-mono">{roomInfo.stun_url}</span></div>
-              {roomInfo.connection_info && (
-                <pre className="text-xs bg-gray-100 rounded p-2 mt-2 overflow-x-auto">{JSON.stringify(roomInfo.connection_info, null, 2)}</pre>
-              )}
-            </div>
-          )}
-
-          {messages.length > 0 && (
-            <div className="mt-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">
-                Recent Messages ({messages.length})
-              </h3>
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {messages.slice(-5).map((message: any, index: number) => (
-                  <div key={index} className="text-xs bg-gray-50 p-2 rounded">
-                    <div className="font-mono">
-                      Type: 0x{message.message_type.toString(16).padStart(2, '0')}
-                    </div>
-                    <div className="text-gray-500">
-                      {new Date().toLocaleTimeString()}
-                    </div>
-                  </div>
-                ))}
+            {createdRoomId && (
+              <div className="text-xs text-green-700 bg-green-100 rounded p-2 mt-2">
+                <div>✅ Room created successfully!</div>
+                <div><b>Room ID:</b> {createdRoomId}</div>
+                {createdSessionId && <div><b>Session ID:</b> {createdSessionId}</div>}
               </div>
-            </div>
-          )}
+            )}
+          </form>
         </div>
       </div>
     </div>

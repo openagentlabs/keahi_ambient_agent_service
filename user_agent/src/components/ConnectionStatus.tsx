@@ -1,5 +1,15 @@
 import React from 'react';
-import { ConnectionState, ConnectionStateType } from '@/lib/signal-manager-client';
+
+interface ConnectionState {
+  stateType: string;
+  isConnected: boolean;
+  isConnecting: boolean;
+  isReconnecting: boolean;
+  lastHeartbeat: number;
+  reconnectAttempts: number;
+  currentRetryInterval: number;
+  nextRetryTime: number | null;
+}
 
 interface ConnectionStatusProps {
   state: ConnectionState;
@@ -25,15 +35,15 @@ export function ConnectionStatus({ state, error }: ConnectionStatusProps) {
 
   const getStateTypeText = () => {
     switch (state.stateType) {
-      case ConnectionStateType.DISCONNECTED_NOT_TO_CONNECT:
+      case 'disconnected_not_to_connect':
         return 'Initial State';
-      case ConnectionStateType.TRYING_TO_CONNECT:
+      case 'trying_to_connect':
         return 'Trying to Connect';
-      case ConnectionStateType.CONNECTED:
+      case 'connected':
         return 'Connected';
-      case ConnectionStateType.WAS_CONNECTED_TRYING_TO_RECONNECT:
+      case 'was_connected_trying_to_reconnect':
         return 'Reconnecting';
-      case ConnectionStateType.DISCONNECTING_DISCONNECT_REQUESTED:
+      case 'disconnecting_disconnect_requested':
         return 'Disconnecting';
       default:
         return 'Unknown State';
@@ -41,7 +51,7 @@ export function ConnectionStatus({ state, error }: ConnectionStatusProps) {
   };
 
   const getRetryInfo = () => {
-    if (state.stateType === ConnectionStateType.WAS_CONNECTED_TRYING_TO_RECONNECT && state.nextRetryTime) {
+    if (state.stateType === 'was_connected_trying_to_reconnect' && state.nextRetryTime) {
       const now = Date.now();
       const timeUntilRetry = Math.max(0, state.nextRetryTime - now);
       const secondsUntilRetry = Math.ceil(timeUntilRetry / 1000);

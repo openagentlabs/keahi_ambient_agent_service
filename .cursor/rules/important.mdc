@@ -3,8 +3,8 @@ alwaysApply: true
 ---
 
 # Important Instructions
-- When working with GCP, the project is: keahi-ambient-agent-service
-- The database used by /home/keith/Dev/keahi_ambient_agent_service/signal_manager_service is gcp firestore and is called signal-manager-service-db
+- after making changes or generating code always preform a compile of the code, debug and problem step by step and fix on at a time before moving to leat, repeating until all erro and warning are fixed.
+
 
 
 # Important Tools to Use

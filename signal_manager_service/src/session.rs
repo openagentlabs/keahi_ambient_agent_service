@@ -35,15 +35,34 @@ impl SessionManager {
     }
 
     pub async fn handle_connect(&self, client_id: String, auth_token: String) -> Result<Message, crate::Error> {
+        info!("[AUTH] Attempting to authenticate client: {}", client_id);
+        
         // Authenticate the client
-        if !self.auth_manager.authenticate(&client_id, &auth_token).await? {
-            return Ok(Message::new(
-                MessageType::Error,
-                Payload::Error(ErrorPayload {
-                    error_code: 1,
-                    error_message: "Authentication failed".to_string(),
-                })
-            ));
+        let auth_result = self.auth_manager.authenticate(&client_id, &auth_token).await;
+        match auth_result {
+            Ok(true) => {
+                info!("[AUTH] Authentication successful for client: {}", client_id);
+            }
+            Ok(false) => {
+                warn!("[AUTH] Authentication failed for client: {}", client_id);
+                return Ok(Message::new(
+                    MessageType::Error,
+                    Payload::Error(ErrorPayload {
+                        error_code: 1,
+                        error_message: "Authentication failed".to_string(),
+                    })
+                ));
+            }
+            Err(e) => {
+                error!("[AUTH] Authentication error for client {}: {}", client_id, e);
+                return Ok(Message::new(
+                    MessageType::Error,
+                    Payload::Error(ErrorPayload {
+                        error_code: 1,
+                        error_message: format!("Authentication error: {}", e),
+                    })
+                ));
+            }
         }
 
         // Create session
@@ -60,7 +79,7 @@ impl SessionManager {
             sessions.insert(client_id.clone(), session);
         }
 
-        info!("Client {} connected with session {}", client_id, session_id);
+        info!("[SESSION] Client {} connected with session {}", client_id, session_id);
 
         Ok(Message::new(
             MessageType::ConnectAck,

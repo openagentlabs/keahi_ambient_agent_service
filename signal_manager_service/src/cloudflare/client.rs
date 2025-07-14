@@ -83,7 +83,8 @@ impl CloudflareClient {
             }
         });
 
-        debug!("Creating Cloudflare session with URL: {}", url);
+        debug!("Sending Cloudflare session creation request to URL: {}", url);
+        debug!("Cloudflare session creation request body: {}", body);
         
         let response = self.http_client
             .post(&url)
@@ -99,7 +100,20 @@ impl CloudflareClient {
             return Err(format!("Cloudflare API error: {error_text}").into());
         }
 
-        let result: CloudflareSessionResponse = response.json().await?;
+        // Debug: Log the raw response for troubleshooting
+        let response_text = response.text().await?;
+        debug!("Cloudflare session creation response: {}", response_text);
+        
+        // Try to parse the response
+        let result: CloudflareSessionResponse = match serde_json::from_str(&response_text) {
+            Ok(result) => result,
+            Err(e) => {
+                error!("Failed to parse Cloudflare response: {}", e);
+                error!("Response text: {}", response_text);
+                return Err(format!("Failed to parse Cloudflare response: {}", e).into());
+            }
+        };
+        
         info!("Created Cloudflare session: {}", result.session_id);
         
         Ok(result)

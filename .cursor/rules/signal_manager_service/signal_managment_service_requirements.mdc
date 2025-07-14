@@ -1,4 +1,5 @@
 ---
+globs: *signal_manager_service*
 alwaysApply: false
 ---
 # Product Requirements Document: Signaling Management Service
@@ -102,6 +103,7 @@ The Signaling Management Service is a core backend component of the remote scree
 ## 11. Rules
 
 - In the root of the signal manager service is the build script build.sh, use this to build the application
+
 
 
 

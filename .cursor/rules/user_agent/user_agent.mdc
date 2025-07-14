@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-User agent is responcable for for interacting with the user on there laptop or PC, capturing contect in the form of desktop screen capture, mouse, keyboard, application contect and other context information to help establish the solid understanding of what the user is workig on and providing assistance.
+User agent is responcable for for interacting with the user on there laptop or PC, capturing contect in the form of desktop screen capture video and audio, mouse, keyboard, application contect and other context information to help establish the solid understanding of what the user is workig on and providing assistance. This application uses binary websocket to establisg a connection with the signam_manager_service and using ower own defined protocal interacts with the service_manager_service to establish a room, a room is a place with user_agents and ai_agents meet, the user_agent send the video and audio and contect infor like keyboard and mouse using WebRTC and the ai_agent receives the video and audio, mouse and keybaord and applications information so it can understand the context of what the user is doing.   
 
 ## 2. Goals & Objectives
 
@@ -324,6 +324,11 @@ audio and metadata to the the remote ambient AI agent.
 - Performance testing on various hardware configurations
 - Security and privacy compliance testing
 - UI/UX testing for glass-morphism design and interactions
+
+## 18. Important Rules to Always Follow
+
+- This project has buisness login in the Rust code and UI and UX related code in the typescript, react and shadcn, this approch is using Tauri framework.
+
 
 
 

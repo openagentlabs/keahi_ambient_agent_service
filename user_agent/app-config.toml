@@ -6,6 +6,7 @@ auth_token = "test_token_1"
 version = "1.0.0"
 heartbeat_interval = 5
 timeout = 10
+command_timeout = 15
 reconnect_attempts = 5
 reconnect_delay = 1
 

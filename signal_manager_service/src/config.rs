@@ -48,6 +48,7 @@ pub struct LoggingConfig {
     pub format: String,
     pub file_path: Option<String>,
     pub console_output: bool,
+    pub file_output: bool,
     pub max_file_size: usize,
     pub max_files: usize,
 }
@@ -179,6 +180,7 @@ impl Default for Config {
                 format: "json".to_string(),
                 file_path: None,
                 console_output: true,
+                file_output: true,
                 max_file_size: 10485760,
                 max_files: 5,
             },
