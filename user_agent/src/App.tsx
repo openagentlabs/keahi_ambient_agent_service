@@ -52,6 +52,44 @@ export default function App() {
   const [createdSessionId, setCreatedSessionId] = React.useState<string | null>(null);
   const [roomId, setRoomId] = React.useState<string | null>(null);
 
+  // Reset application state to initial values
+  const resetApplicationState = () => {
+    console.log('Resetting application state to initial values');
+    
+    // Reset connection state
+    setState({
+      state_type: 'disconnected_not_to_connect',
+      is_connected: false,
+      is_connecting: false,
+      is_reconnecting: false,
+      last_heartbeat: 0,
+      reconnect_attempts: 0,
+      current_retry_interval: 0,
+      next_retry_time: null,
+    });
+    
+    // Reset error states
+    setError(null);
+    setWebrtcError(null);
+    
+    // Reset loading states
+    setIsGeneratingOffer(false);
+    setIsConnecting(false);
+    setIsDisconnecting(false);
+    setCreatingRoom(false);
+    
+    // Reset UI state
+    setClientId("");
+    setAuthToken("");
+    setRole('sender');
+    setOfferSdp("");
+    setCreatedRoomId(null);
+    setCreatedSessionId(null);
+    setRoomId(null);
+    
+    console.log('Application state reset completed');
+  };
+
   // Set up event listeners for real-time updates
   React.useEffect(() => {
     const unlistenFns: (() => void)[] = [];
@@ -182,18 +220,28 @@ export default function App() {
     setError(null);
     
     try {
+      // Disconnect from signal manager
       await invoke('disconnect_signal_manager');
+      
+      // Cleanup WebRTC connection
       await invoke('cleanup_webrtc_connection');
-      // Clear form fields when disconnecting
-      setClientId("");
-      setAuthToken("");
-      setOfferSdp("");
-      setCreatedRoomId(null);
-      setCreatedSessionId(null);
-      setRoomId(null);
+      
+      // Reset signal manager state
+      await invoke('reset_signal_manager');
+      
+      // Reset all application state
+      resetApplicationState();
     } catch (err) {
-      setError(`Disconnect failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Disconnect failed: ${errorMessage}`);
       setIsDisconnecting(false);
+      
+      // Even if reset fails, try to reset application state
+      try {
+        resetApplicationState();
+      } catch (resetErr) {
+        console.error('Failed to reset application state:', resetErr);
+      }
     }
   };
 

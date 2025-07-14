@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Functionality Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .connect { background-color: #28a745; color: white; }
+        .disconnect { background-color: #dc3545; color: white; }
+        .reset { background-color: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+    <h1>Reset Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Instructions</h2>
+        <ol>
+            <li>Click "Connect" to establish a connection</li>
+            <li>Fill in some form fields (Client ID, Auth Token)</li>
+            <li>Click "Disconnect" to disconnect and reset</li>
+            <li>Verify all fields are cleared and state is reset</li>
+            <li>Click "Connect" again to test reconnection</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>Connection Status</h2>
+        <div id="status">Disconnected</div>
+        <button class="connect" onclick="connect()">Connect</button>
+        <button class="disconnect" onclick="disconnect()">Disconnect</button>
+        <button class="reset" onclick="reset()">Reset Only</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Form Fields</h2>
+        <label>Client ID: <input type="text" id="clientId" placeholder="Enter client ID"></label><br><br>
+        <label>Auth Token: <input type="text" id="authToken" placeholder="Enter auth token"></label><br><br>
+        <label>Role: 
+            <select id="role">
+                <option value="sender">Sender</option>
+                <option value="receiver">Receiver</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let isConnected = false;
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        function addResult(message, isSuccess = true) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            div.className = isSuccess ? 'success' : 'error';
+            results.appendChild(div);
+        }
+
+        function connect() {
+            updateStatus('Connecting...');
+            addResult('Connect button clicked');
+            
+            // Simulate connection
+            setTimeout(() => {
+                isConnected = true;
+                updateStatus('Connected');
+                addResult('Connection established successfully');
+            }, 1000);
+        }
+
+        function disconnect() {
+            updateStatus('Disconnecting...');
+            addResult('Disconnect button clicked');
+            
+            // Simulate disconnect and reset
+            setTimeout(() => {
+                isConnected = false;
+                updateStatus('Disconnected');
+                
+                // Reset form fields
+                document.getElementById('clientId').value = '';
+                document.getElementById('authToken').value = '';
+                document.getElementById('role').value = 'sender';
+                
+                addResult('Disconnected and reset completed - all fields cleared');
+            }, 1000);
+        }
+
+        function reset() {
+            addResult('Reset button clicked');
+            
+            // Reset form fields
+            document.getElementById('clientId').value = '';
+            document.getElementById('authToken').value = '';
+            document.getElementById('role').value = 'sender';
+            
+            addResult('Form fields reset');
+        }
+
+        // Test the reset functionality
+        window.addEventListener('load', () => {
+            addResult('Test page loaded - ready to test disconnect/reconnect functionality');
+        });
+    </script>
+</body>
+</html> 

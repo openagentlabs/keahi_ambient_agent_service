@@ -38,6 +38,7 @@ pub fn run() {
             commands::init_signal_manager,
             commands::connect_signal_manager,
             commands::disconnect_signal_manager,
+            commands::reset_signal_manager,
             commands::get_signal_manager_state,
             commands::send_room_create
         ])

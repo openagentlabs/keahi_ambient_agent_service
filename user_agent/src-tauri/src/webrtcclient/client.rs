@@ -153,6 +153,27 @@ impl WebRTCClient {
         Ok(())
     }
 
+    /// Reset the client to initial state (preserves configuration)
+    pub async fn reset(&mut self) -> Result<(), WebRTCError> {
+        self.reset_with_config(false).await
+    }
+
+    /// Reset the client to initial state with optional config reset
+    pub async fn reset_with_config(&mut self, reset_config: bool) -> Result<(), WebRTCError> {
+        debug!("Resetting WebRTC client to initial state");
+        
+        // Close existing connection
+        self.close().await?;
+        
+        // Optionally reset configuration to default
+        if reset_config {
+            self.config = WebRTCConfig::default();
+        }
+        
+        debug!("WebRTC client reset completed");
+        Ok(())
+    }
+
     /// Gets the current configuration
     pub fn get_config(&self) -> &WebRTCConfig {
         &self.config

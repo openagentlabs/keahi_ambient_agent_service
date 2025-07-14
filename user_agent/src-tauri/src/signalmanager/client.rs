@@ -199,6 +199,25 @@ impl SignalManagerClient {
         self.state.clone()
     }
 
+    /// Reset the client to initial state
+    pub async fn reset(&mut self) -> Result<(), SignalManagerError> {
+        info!("[reset] Resetting SignalManagerClient to initial state");
+        
+        // Close WebSocket connection if it exists
+        if let Some(mut websocket) = self.websocket.take() {
+            // Wait for WebSocket to close properly
+            websocket.close().await;
+        }
+        
+        // Reset state but preserve the callback
+        self.state = ConnectionState::default();
+        // Don't clear state_callback to preserve event emission
+        self.last_room_response = None;
+        
+        info!("[reset] SignalManagerClient reset completed");
+        Ok(())
+    }
+
     // Private methods
     async fn send_connect(&self) -> Result<(), SignalManagerError> {
         if let Some(websocket) = &self.websocket {

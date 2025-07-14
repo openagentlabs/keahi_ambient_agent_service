@@ -187,4 +187,58 @@ async fn test_webrtc_config_default() {
     assert_eq!(config.stun_url, "stun:stun.cloudflare.com:3478");
     assert_eq!(config.app_id, "bffd14dc10f70248bbcf42d3c5ef4307");
     assert_eq!(config.app_secret, "98468ea69f92fc7cb75c436bbfb4155296f4a29a0dc0b642247a124dc328420a");
+}
+
+#[tokio::test]
+async fn test_webrtc_client_reset_preserves_config() {
+    let mut client = WebRTCClient::with_default_config();
+    let original_config = client.get_config().clone();
+    
+    // Create an offer to establish a connection
+    let _offer = client.create_offer().await.unwrap();
+    
+    // Reset without config reset
+    let result = client.reset_with_config(false).await;
+    assert!(result.is_ok());
+    
+    // Check that config is preserved
+    let config_after_reset = client.get_config();
+    assert_eq!(config_after_reset.stun_url, original_config.stun_url);
+    assert_eq!(config_after_reset.app_id, original_config.app_id);
+    assert_eq!(config_after_reset.app_secret, original_config.app_secret);
+}
+
+#[tokio::test]
+async fn test_webrtc_client_reset_with_config_reset() {
+    let mut client = WebRTCClient::with_default_config();
+    
+    // Create an offer to establish a connection
+    let _offer = client.create_offer().await.unwrap();
+    
+    // Reset with config reset
+    let result = client.reset_with_config(true).await;
+    assert!(result.is_ok());
+    
+    // Check that config is reset to default
+    let config_after_reset = client.get_config();
+    assert_eq!(config_after_reset.stun_url, "stun:stun.cloudflare.com:3478");
+    assert_eq!(config_after_reset.app_id, "bffd14dc10f70248bbcf42d3c5ef4307");
+    assert_eq!(config_after_reset.app_secret, "98468ea69f92fc7cb75c436bbfb4155296f4a29a0dc0b642247a124dc328420a");
+}
+
+#[tokio::test]
+async fn test_webrtc_client_reset_default_behavior() {
+    let mut client = WebRTCClient::with_default_config();
+    
+    // Create an offer to establish a connection
+    let _offer = client.create_offer().await.unwrap();
+    
+    // Reset using default method (should preserve config)
+    let result = client.reset().await;
+    assert!(result.is_ok());
+    
+    // Check that config is preserved (default behavior)
+    let config_after_reset = client.get_config();
+    assert_eq!(config_after_reset.stun_url, "stun:stun.cloudflare.com:3478");
+    assert_eq!(config_after_reset.app_id, "bffd14dc10f70248bbcf42d3c5ef4307");
 } 
